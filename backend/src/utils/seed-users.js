@@ -34,7 +34,7 @@ async function seedUsers() {
         tenant_id: tenant.id,
         name: 'Admin Demo',
         email: 'admin@demo.com',
-        password: hashedPassword,
+        password_hash: hashedPassword,
         balance: 100.00,
         is_admin: true
       });
@@ -52,7 +52,7 @@ async function seedUsers() {
         tenant_id: tenant.id,
         name: 'Usuário Demo',
         email: 'user@demo.com',
-        password: hashedPassword,
+        password_hash: hashedPassword,
         balance: 50.00,
         is_admin: false
       });
