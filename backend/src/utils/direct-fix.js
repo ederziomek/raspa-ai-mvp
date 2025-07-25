@@ -15,10 +15,10 @@ async function directFix() {
     );
     
     if (!tenantResult || tenantResult.length === 0) {
-      // Criar tenant se não existir
+      // Criar tenant se não existir (sem is_active)
       await sequelize.query(`
-        INSERT INTO tenants (subdomain, name, primary_color, secondary_color, is_active, createdAt, updatedAt)
-        VALUES ('raspa-ai-mvp-production', 'Raspa.ai Demo', '#FF6B35', '#FFD23F', 1, NOW(), NOW())
+        INSERT INTO tenants (subdomain, name, primary_color, secondary_color, createdAt, updatedAt)
+        VALUES ('raspa-ai-mvp-production', 'Raspa.ai Demo', '#FF6B35', '#FFD23F', datetime('now'), datetime('now'))
       `);
       
       const [newTenantResult] = await sequelize.query(
@@ -38,14 +38,14 @@ async function directFix() {
     // Criar usuário admin
     await sequelize.query(`
       INSERT INTO users (tenant_id, name, email, password_hash, balance, is_admin, active, createdAt, updatedAt)
-      VALUES (${tenantId}, 'Admin Demo', 'admin@demo.com', '${correctHash}', 100.00, 1, 1, NOW(), NOW())
+      VALUES (${tenantId}, 'Admin Demo', 'admin@demo.com', '${correctHash}', 100.00, 1, 1, datetime('now'), datetime('now'))
     `);
     console.log('✅ Admin criado: admin@demo.com');
     
     // Criar usuário normal
     await sequelize.query(`
       INSERT INTO users (tenant_id, name, email, password_hash, balance, is_admin, active, createdAt, updatedAt)
-      VALUES (${tenantId}, 'Usuário Demo', 'user@demo.com', '${correctHash}', 50.00, 0, 1, NOW(), NOW())
+      VALUES (${tenantId}, 'Usuário Demo', 'user@demo.com', '${correctHash}', 50.00, 0, 1, datetime('now'), datetime('now'))
     `);
     console.log('✅ Usuário criado: user@demo.com');
     
