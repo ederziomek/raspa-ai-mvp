@@ -78,7 +78,7 @@ app.get('/setup-production', async (req, res) => {
   }
 });
 
-// Rota de correção de usuários
+// Rota de correção de usuários (antes do middleware tenant)
 app.get('/fix-users', async (req, res) => {
   try {
     const { fixUsers } = require('./src/utils/fix-users');
