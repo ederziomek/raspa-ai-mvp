@@ -56,6 +56,24 @@ app.use(session({
   }
 }));
 
+// Rota especial de setup (ANTES do middleware de tenant)
+app.get('/setup-production', async (req, res) => {
+  try {
+    const setupProduction = require('./src/utils/setup-production');
+    await setupProduction();
+    res.json({
+      message: 'Setup de produção executado com sucesso!',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Erro no setup:', error);
+    res.status(500).json({
+      error: 'Erro no setup de produção',
+      message: error.message
+    });
+  }
+});
+
 // Middleware de detecção de tenant
 app.use(tenantMiddleware);
 
