@@ -22,6 +22,7 @@ const GameCard = ({
   const [showAutoOptions, setShowAutoOptions] = useState(false);
   const [showVictoryPopup, setShowVictoryPopup] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showTopNotification, setShowTopNotification] = useState(false); // NOVA NOTIFICAÇÃO NO TOPO
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
@@ -129,6 +130,7 @@ const GameCard = ({
       setRevealedArea(0);
       setShowVictoryPopup(false);
       setShowConfetti(false);
+      setShowTopNotification(false); // RESETA NOTIFICAÇÃO NO TOPO
     }
   }, [gameResult, generateSymbols]);
 
@@ -144,6 +146,7 @@ const GameCard = ({
       setRevealedArea(0);
       setShowVictoryPopup(false);
       setShowConfetti(false);
+      setShowTopNotification(false); // ESCONDE NOTIFICAÇÃO QUANDO INICIA NOVO JOGO
       
       // Limpa o canvas único
       if (canvasRef.current) {
@@ -370,11 +373,11 @@ const GameCard = ({
         setScratchProgress(100);
         setRevealedArea(100);
         
-        // Se ganhou, mostra confetes e popup
+        // Se ganhou, mostra confetes e notificação no topo
         if (gameResult && gameResult.isWinner) {
           setShowConfetti(true);
           setTimeout(() => {
-            setShowVictoryPopup(true);
+            setShowTopNotification(true); // MOSTRA NOTIFICAÇÃO NO TOPO EM VEZ DO POPUP
           }, 500);
           
           // Para confetes depois de 3 segundos
@@ -505,28 +508,22 @@ const GameCard = ({
     );
   };
 
-  // Popup de Vitória
-  const VictoryPopup = () => {
-    if (!showVictoryPopup || !gameResult?.isWinner) return null;
+  // NOVA NOTIFICAÇÃO NO TOPO
+  const TopNotification = () => {
+    if (!showTopNotification || !gameResult?.isWinner) return null;
     
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-        <div className="bg-gradient-to-b from-green-600 to-green-700 p-8 rounded-2xl border-4 border-green-400 shadow-2xl text-center max-w-sm mx-4 animate-bounce">
-          <div className="text-6xl mb-4">🎉</div>
-          <div className="text-white text-2xl font-bold mb-2">PARABÉNS!</div>
-          <div className="text-green-200 text-lg mb-4">Você ganhou</div>
-          <div className="text-white text-3xl font-bold mb-2">
-            {formatCurrency(gameResult.prizeAmount)}
+      <div className="absolute top-4 left-4 right-4 z-50 animate-bounce">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl border-2 border-green-300 shadow-2xl">
+          <div className="flex items-center justify-center gap-2 text-white">
+            <span className="text-2xl">🎉</span>
+            <div className="text-center">
+              <div className="font-bold text-lg">PARABÉNS!</div>
+              <div className="text-sm">Você ganhou <span className="font-bold text-xl">{formatCurrency(gameResult.prizeAmount)}</span></div>
+              <div className="text-xs text-green-100">Multiplicador: {gameResult.multiplier.toFixed(1)}x</div>
+            </div>
+            <span className="text-2xl">🎉</span>
           </div>
-          <div className="text-green-200 text-sm mb-6">
-            Multiplicador: {gameResult.multiplier}x
-          </div>
-          <button
-            onClick={() => setShowVictoryPopup(false)}
-            className="bg-white text-green-700 px-6 py-2 rounded-full font-bold hover:bg-green-50 transition-colors"
-          >
-            Continuar
-          </button>
         </div>
       </div>
     );
@@ -537,8 +534,8 @@ const GameCard = ({
       {/* Confetes */}
       <ConfettiAnimation />
       
-      {/* Popup de Vitória */}
-      <VictoryPopup />
+      {/* NOVA NOTIFICAÇÃO NO TOPO */}
+      <TopNotification />
       
       {/* Header */}
       <div className="text-center mb-4">
@@ -641,55 +638,15 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Resultado após revelação */}
-      {gameResult && !isPlaying && gameCompleted && !showVictoryPopup && (
-        <div className={`mb-4 text-center p-4 rounded-lg border-2 transition-all duration-500 ${
-          gameResult.isWinner 
-            ? 'bg-green-500/20 border-green-500 shadow-green-500/20 shadow-lg' 
-            : 'bg-red-500/20 border-red-500 shadow-red-500/20 shadow-lg'
-        }`}>
-          {gameResult.isWinner ? (
-            <div>
-              <div className="text-green-400 font-bold text-xl mb-2 animate-pulse">
-                🎉 PARABÉNS! 🎉
-              </div>
-              <div className="text-white text-base mb-1">
-                Você ganhou <span className="font-bold text-green-400 text-lg">
-                  {formatCurrency(gameResult.prizeAmount)}
-                </span>
-              </div>
-              <div className="text-green-300 text-sm mb-2">
-                Multiplicador: {gameResult.multiplier}x
-              </div>
-              {balanceUpdated ? (
-                <div className="text-green-400 text-sm font-medium">
-                  ✅ Saldo atualizado com sucesso!
-                </div>
-              ) : (
-                <div className="text-yellow-400 text-sm">
-                  ⏳ Atualizando saldo...
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <div className="text-red-400 font-bold text-lg mb-2">
-                😔 Não foi dessa vez...
-              </div>
-              <div className="text-gray-300 text-sm mb-2">
-                Tente novamente!
-              </div>
-              {balanceUpdated ? (
-                <div className="text-red-400 text-sm font-medium">
-                  ✅ Saldo atualizado
-                </div>
-              ) : (
-                <div className="text-yellow-400 text-sm">
-                  ⏳ Atualizando saldo...
-                </div>
-              )}
-            </div>
-          )}
+      {/* Resultado após revelação - SEM POPUP, APENAS PARA PERDAS */}
+      {gameResult && !isPlaying && gameCompleted && !gameResult.isWinner && (
+        <div className="mb-4 text-center p-4 rounded-lg border-2 transition-all duration-500 bg-red-500/20 border-red-500 shadow-red-500/20 shadow-lg">
+          <div className="text-red-400 font-bold text-lg mb-2">
+            😔 Não foi dessa vez...
+          </div>
+          <div className="text-gray-300 text-sm mb-2">
+            Tente novamente!
+          </div>
         </div>
       )}
 
@@ -706,7 +663,8 @@ const GameCard = ({
         <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
           <div className="text-green-400 text-xs font-medium mb-1">GANHO</div>
           <div className="text-white text-sm font-bold">
-            {formatCurrency(gameResult?.prizeAmount || 0)}
+            {/* CORREÇÃO: SÓ MOSTRA GANHO APÓS COMPLETAR O JOGO */}
+            {formatCurrency(gameCompleted && gameResult?.prizeAmount ? gameResult.prizeAmount : 0)}
           </div>
         </div>
       </div>
@@ -804,8 +762,6 @@ const GameCard = ({
           </div>
         )}
       </div>
-
-      {/* REMOVIDA A SEÇÃO DE LEGENDA CONFORME SOLICITADO */}
     </div>
   );
 };
