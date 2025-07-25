@@ -20,10 +20,13 @@ const GameCard = ({
   const [autoActive, setAutoActive] = useState(false);
   const [autoRounds, setAutoRounds] = useState(0);
   const [showAutoOptions, setShowAutoOptions] = useState(false);
+  const [showVictoryPopup, setShowVictoryPopup] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
   const lastScratchTime = useRef(0);
+  const autoIntervalRef = useRef(null);
 
   // Apenas 4 ícones conforme solicitado (removido o saquinho de dinheiro)
   const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
@@ -124,6 +127,8 @@ const GameCard = ({
       setGameCompleted(false);
       setBalanceUpdated(false);
       setRevealedArea(0);
+      setShowVictoryPopup(false);
+      setShowConfetti(false);
     }
   }, [gameResult, generateSymbols]);
 
@@ -137,6 +142,8 @@ const GameCard = ({
       setGameCompleted(false);
       setBalanceUpdated(false);
       setRevealedArea(0);
+      setShowVictoryPopup(false);
+      setShowConfetti(false);
       
       // Limpa o canvas único
       if (canvasRef.current) {
@@ -258,6 +265,21 @@ const GameCard = ({
     }
   }, [gameStarted, scratchProgress, initializeCanvas]);
 
+  // AUTO PLAY AUTOMÁTICO - NOVA FUNCIONALIDADE
+  useEffect(() => {
+    if (autoActive && autoRounds > 0 && !isPlaying && gameCompleted) {
+      autoIntervalRef.current = setTimeout(() => {
+        onPlay(turboActive);
+      }, 1500);
+    }
+    
+    return () => {
+      if (autoIntervalRef.current) {
+        clearTimeout(autoIntervalRef.current);
+      }
+    };
+  }, [autoActive, autoRounds, isPlaying, gameCompleted, turboActive, onPlay]);
+
   // Função para "raspar" o canvas único
   const scratch = useCallback((canvas, x, y) => {
     if (!canvas || !gameStarted || gameCompleted || isRevealing || turboActive) return;
@@ -347,11 +369,24 @@ const GameCard = ({
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         setScratchProgress(100);
         setRevealedArea(100);
+        
+        // Se ganhou, mostra confetes e popup
+        if (gameResult && gameResult.isWinner) {
+          setShowConfetti(true);
+          setTimeout(() => {
+            setShowVictoryPopup(true);
+          }, 500);
+          
+          // Para confetes depois de 3 segundos
+          setTimeout(() => {
+            setShowConfetti(false);
+          }, 3000);
+        }
       }
     };
     
     fadeOut();
-  }, [gameCompleted]);
+  }, [gameCompleted, gameResult]);
 
   // Atualiza saldo apenas quando o jogo é completado
   useEffect(() => {
@@ -362,19 +397,16 @@ const GameCard = ({
         const balanceChange = gameResult.isWinner ? gameResult.prizeAmount : -betAmount;
         onBalanceUpdate(balanceChange);
         
-        // Se modo auto está ativo, continua jogando
+        // Se modo auto está ativo, diminui contador
         if (autoActive && autoRounds > 1) {
           setAutoRounds(prev => prev - 1);
-          setTimeout(() => {
-            onPlay(turboActive);
-          }, 1500);
         } else if (autoActive && autoRounds <= 1) {
           setAutoActive(false);
           setAutoRounds(0);
         }
       }, 800);
     }
-  }, [gameCompleted, balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds, turboActive, onPlay]);
+  }, [gameCompleted, balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds]);
 
   // Handlers de mouse/touch
   const handleStart = useCallback((e) => {
@@ -419,6 +451,9 @@ const GameCard = ({
     if (autoActive) {
       setAutoActive(false);
       setAutoRounds(0);
+      if (autoIntervalRef.current) {
+        clearTimeout(autoIntervalRef.current);
+      }
     } else {
       setShowAutoOptions(!showAutoOptions);
     }
@@ -431,15 +466,80 @@ const GameCard = ({
   };
 
   const handlePlay = () => {
-    if (autoActive && autoRounds > 0) {
-      onPlay(turboActive);
-    } else {
-      onPlay(turboActive);
-    }
+    onPlay(turboActive);
+  };
+
+  // Componente de Confetes
+  const ConfettiAnimation = () => {
+    if (!showConfetti) return null;
+    
+    const confettiPieces = Array.from({ length: 50 }, (_, i) => (
+      <div
+        key={i}
+        className="absolute w-2 h-2 opacity-80"
+        style={{
+          left: `${Math.random() * 100}%`,
+          backgroundColor: ['#48bb78', '#f6e05e', '#ed8936', '#9f7aea', '#38b2ac'][Math.floor(Math.random() * 5)],
+          animation: `confetti-fall ${2 + Math.random() * 3}s linear infinite`,
+          animationDelay: `${Math.random() * 2}s`
+        }}
+      />
+    ));
+    
+    return (
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+        {confettiPieces}
+        <style jsx>{`
+          @keyframes confetti-fall {
+            0% {
+              transform: translateY(-100vh) rotate(0deg);
+              opacity: 1;
+            }
+            100% {
+              transform: translateY(100vh) rotate(720deg);
+              opacity: 0;
+            }
+          }
+        `}</style>
+      </div>
+    );
+  };
+
+  // Popup de Vitória
+  const VictoryPopup = () => {
+    if (!showVictoryPopup || !gameResult?.isWinner) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div className="bg-gradient-to-b from-green-600 to-green-700 p-8 rounded-2xl border-4 border-green-400 shadow-2xl text-center max-w-sm mx-4 animate-bounce">
+          <div className="text-6xl mb-4">🎉</div>
+          <div className="text-white text-2xl font-bold mb-2">PARABÉNS!</div>
+          <div className="text-green-200 text-lg mb-4">Você ganhou</div>
+          <div className="text-white text-3xl font-bold mb-2">
+            {formatCurrency(gameResult.prizeAmount)}
+          </div>
+          <div className="text-green-200 text-sm mb-6">
+            Multiplicador: {gameResult.multiplier}x
+          </div>
+          <button
+            onClick={() => setShowVictoryPopup(false)}
+            className="bg-white text-green-700 px-6 py-2 rounded-full font-bold hover:bg-green-50 transition-colors"
+          >
+            Continuar
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-4 sm:p-6 rounded-lg border-2 border-green-500 shadow-2xl max-w-md mx-auto w-full">
+    <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-4 sm:p-6 rounded-lg border-2 border-green-500 shadow-2xl max-w-md mx-auto w-full relative">
+      {/* Confetes */}
+      <ConfettiAnimation />
+      
+      {/* Popup de Vitória */}
+      <VictoryPopup />
+      
       {/* Header */}
       <div className="text-center mb-4">
         <h2 className="text-2xl font-bold text-green-400 mb-2">RaspaAI</h2>
@@ -487,13 +587,17 @@ const GameCard = ({
           {symbols.map((symbol, index) => (
             <div
               key={index}
-              className="relative aspect-square rounded-lg overflow-hidden border border-gray-600 bg-gradient-to-br from-gray-700 to-gray-800"
+              className={`relative aspect-square rounded-lg overflow-hidden border border-gray-600 ${
+                gameCompleted && gameResult?.isWinner && symbol === winningIcon
+                  ? 'bg-gradient-to-br from-green-500 to-green-600' // BACKGROUND VERDE PARA SAQUINHOS VENCEDORES
+                  : 'bg-gradient-to-br from-gray-700 to-gray-800'
+              }`}
             >
               <div className="absolute inset-0 flex items-center justify-center text-3xl sm:text-4xl font-bold">
                 {gameStarted ? (
                   <span 
                     className={`transition-all duration-500 ${
-                      symbol === winningIcon ? 'text-green-400 animate-pulse' : 'text-white'
+                      symbol === winningIcon ? 'text-white animate-pulse' : 'text-white'
                     }`}
                   >
                     {symbol}
@@ -503,7 +607,7 @@ const GameCard = ({
                 )}
               </div>
 
-              {gameCompleted && symbol === winningIcon && (
+              {gameCompleted && gameResult?.isWinner && symbol === winningIcon && (
                 <div className="absolute inset-0 bg-green-400 opacity-20 animate-pulse rounded-lg" />
               )}
             </div>
@@ -538,7 +642,7 @@ const GameCard = ({
       </div>
 
       {/* Resultado após revelação */}
-      {gameResult && !isPlaying && gameCompleted && (
+      {gameResult && !isPlaying && gameCompleted && !showVictoryPopup && (
         <div className={`mb-4 text-center p-4 rounded-lg border-2 transition-all duration-500 ${
           gameResult.isWinner 
             ? 'bg-green-500/20 border-green-500 shadow-green-500/20 shadow-lg' 
@@ -701,27 +805,7 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Legenda aprimorada */}
-      {gameStarted && (
-        <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-green-500/30">
-          <div className="text-center text-xs space-y-1">
-            <p className="text-green-400 font-medium">
-              💰 = Símbolo da sorte (precisa de EXATAMENTE 3 iguais para ganhar)
-            </p>
-            <p className="text-gray-400">
-              Outros símbolos: ⭐️💎☘️🔥 (máximo 2 de cada)
-            </p>
-            <div className="border-t border-green-500/30 pt-2 mt-2">
-              <p className="text-yellow-400 font-medium">
-                ✨ Melhorias Implementadas!
-              </p>
-              <p className="text-yellow-300 text-xs">
-                🎯 Símbolos aleatórios • Liberação aos 85% • Turbo e Auto funcionais • 💰 Pode ter 0-2 saquinhos sem ganhar
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* REMOVIDA A SEÇÃO DE LEGENDA CONFORME SOLICITADO */}
     </div>
   );
 };
