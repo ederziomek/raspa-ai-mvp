@@ -5,23 +5,20 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copiar arquivos de dependências
-COPY package.json pnpm-lock.yaml ./
-
-# Instalar pnpm
-RUN npm install -g pnpm
+COPY package.json package-lock.json* ./
 
 # Instalar dependências
-RUN pnpm install
+RUN npm install
 
 # Copiar código fonte
 COPY . .
 
 # Build da aplicação
-RUN pnpm run build
+RUN npm run build
 
 # Expor porta
 EXPOSE $PORT
 
 # Comando para iniciar
-CMD ["pnpm", "run", "preview", "--host", "0.0.0.0", "--port", "$PORT"]
+CMD ["npm", "start"]
 
