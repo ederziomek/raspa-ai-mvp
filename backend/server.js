@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rota de setup de produção (ANTES do middleware de tenant)
+// Rota de setup de produção
 app.get('/setup-production', async (req, res) => {
   try {
     const { seedUsers } = require('./src/utils/seed-users');
@@ -71,6 +71,21 @@ app.get('/setup-production', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Erro no setup:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Rota de correção de usuários
+app.get('/fix-users', async (req, res) => {
+  try {
+    const { fixUsers } = require('./src/utils/fix-users');
+    const result = await fixUsers();
+    res.json(result);
+  } catch (error) {
+    console.error('Erro na correção:', error);
     res.status(500).json({
       success: false,
       error: error.message
