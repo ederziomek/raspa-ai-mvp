@@ -3,24 +3,16 @@ const cors = require('cors');
 const helmet = require('helmet');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
-
-const { sequelize } = require('./src/models');
-const { tenantMiddleware } = require('./src/middleware/tenant');
-const { authMiddleware } = require('./src/middleware/auth');
-
-// Importar rotas
-const authRoutes = require('./src/routes/auth');
-const gameRoutes = require('./src/routes/game');
-const adminRoutes = require('./src/routes/admin');
-const tenantRoutes = require('./src/routes/tenant');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
-// Middlewares de segurança
+// Configuração de proxy para Railway
+app.set('trust proxy', 1);
+
+// Helmet para segurança
 app.use(helmet({
-  contentSecurityPolicy: false, // Desabilitar para desenvolvimento
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -32,12 +24,20 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate limiting
+// Rate limiting com configuração para Railway
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // máximo 1000 requests por IP por janela
-  message: 'Muitas requisições deste IP, tente novamente em 15 minutos.'
+  max: 100, // máximo 100 requests por IP por janela
+  message: 'Muitas tentativas, tente novamente em 15 minutos',
+  standardHeaders: true,
+  legacyHeaders: false,
+  trustProxy: true,
+  skip: (req) => {
+    // Skip rate limiting para rotas de setup e health
+    return req.path === '/setup-production' || req.path === '/health';
+  }
 });
+
 app.use(limiter);
 
 // Parsing de JSON e URL encoded
@@ -74,7 +74,17 @@ app.get('/setup-production', async (req, res) => {
   }
 });
 
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Middleware de detecção de tenant
+const tenantMiddleware = require('./src/middleware/tenant');
 app.use(tenantMiddleware);
 
 // Rotas públicas (sem autenticação)
@@ -82,106 +92,41 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Raspa.ai MVP API',
     version: '1.0.0',
-    status: 'online',
-    tenant: req.tenant ? req.tenant.subdomain : 'main',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    database: 'connected',
+    tenant: req.tenant ? req.tenant.subdomain : 'none',
     timestamp: new Date().toISOString()
   });
 });
 
 // Rotas da API
-app.use('/api/auth', authRoutes);
-app.use('/api/tenant', tenantRoutes);
+app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api/tenant', require('./src/routes/tenant'));
+app.use('/api/game', require('./src/routes/game'));
+app.use('/api/admin', require('./src/routes/admin'));
 
-// Rotas protegidas (requerem autenticação)
-app.use('/api/game', authMiddleware, gameRoutes);
-app.use('/api/admin', authMiddleware, adminRoutes);
-
-// Middleware de tratamento de erros
+// Middleware de erro global
 app.use((err, req, res, next) => {
-  console.error('Erro na aplicação:', err);
-  
-  // Erro de validação do Sequelize
-  if (err.name === 'SequelizeValidationError') {
-    return res.status(400).json({
-      error: 'Dados inválidos',
-      details: err.errors.map(e => e.message)
-    });
-  }
-  
-  // Erro de constraint do Sequelize
-  if (err.name === 'SequelizeUniqueConstraintError') {
-    return res.status(409).json({
-      error: 'Dados já existem',
-      details: 'Registro duplicado'
-    });
-  }
-  
-  // Erro genérico
+  console.error('Erro global:', err);
   res.status(500).json({
     error: 'Erro interno do servidor',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Algo deu errado'
   });
 });
 
-// Middleware para rotas não encontradas
+// Rota 404
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Rota não encontrada',
-    path: req.originalUrl,
-    method: req.method
+    path: req.originalUrl
   });
 });
 
-// Inicialização do servidor
-async function startServer() {
-  try {
-    // Conectar ao banco de dados
-    await sequelize.authenticate();
-    console.log('✅ Conexão com banco de dados estabelecida');
-    
-    // Sincronizar modelos (apenas em desenvolvimento)
-    if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      console.log('✅ Modelos sincronizados com o banco');
-    }
-    
-    // Iniciar servidor
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`📊 Database: SQLite`);
-      console.log(`🔗 URL: http://localhost:${PORT}`);
-    });
-    
-  } catch (error) {
-    console.error('❌ Erro ao iniciar servidor:', error);
-    process.exit(1);
-  }
-}
-
-// Tratamento de sinais de encerramento
-process.on('SIGTERM', async () => {
-  console.log('🔄 Recebido SIGTERM, encerrando servidor...');
-  await sequelize.close();
-  process.exit(0);
+// Inicializar servidor
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Database: SQLite`);
+  console.log(`🔗 URL: http://localhost:${PORT}`);
 });
-
-process.on('SIGINT', async () => {
-  console.log('🔄 Recebido SIGINT, encerrando servidor...');
-  await sequelize.close();
-  process.exit(0);
-});
-
-// Iniciar servidor
-startServer();
 
 module.exports = app;
 
