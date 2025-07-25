@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ScratchCard from './components/ScratchCard';
 import './App.css';
 
 function App() {
@@ -7,6 +8,7 @@ function App() {
   const [betAmount, setBetAmount] = useState(0.5);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameResult, setGameResult] = useState(null);
+  const [turboMode, setTurboMode] = useState(false);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -49,17 +51,19 @@ function App() {
   };
 
   // Simula jogo com lógica correta
-  const playGame = async () => {
+  const playGame = async (isTurbo = false) => {
     if (balance < betAmount || isPlaying) return;
 
+    setTurboMode(isTurbo);
     setIsPlaying(true);
     setGameResult(null);
     
     // Debita aposta
     setBalance(prev => prev - betAmount);
 
-    // Simula delay do jogo
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Simula delay do jogo (menor para turbo)
+    const delay = isTurbo ? 800 : 1500;
+    await new Promise(resolve => setTimeout(resolve, delay));
 
     // Seleciona multiplicador baseado na tabela de probabilidades
     const multiplier = selectMultiplier();
@@ -81,6 +85,11 @@ function App() {
 
     setGameResult(result);
     setIsPlaying(false);
+  };
+
+  // Callback quando a revelação da raspadinha termina
+  const handleRevealComplete = () => {
+    setTurboMode(false);
   };
 
   return (
@@ -183,71 +192,46 @@ function App() {
         <div className="max-w-4xl mx-auto">
           {/* Jogo de Raspadinha */}
           <div className="mb-6">
-            <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-6 rounded-lg border-2 border-green-500 shadow-2xl">
-              <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold text-green-400 mb-2">RaspaAI</h2>
-                <p className="text-gray-300 text-sm">Raspe e ganhe prêmios incríveis!</p>
-              </div>
-
-              {/* Grid da raspadinha */}
-              <div className="grid grid-cols-3 gap-2 bg-gradient-to-br from-gray-600 to-gray-700 p-4 rounded-lg border-2 border-green-400 mb-6">
-                {Array.from({ length: 9 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="aspect-square rounded-lg flex items-center justify-center text-3xl font-bold bg-gradient-to-br from-gray-700 to-gray-800 cursor-pointer hover:scale-105 transition-all border border-gray-600"
-                  >
-                    {gameResult && gameResult.isWinner && [0, 4, 8].includes(index) ? (
-                      <span className="text-green-400">💰</span>
-                    ) : gameResult ? (
-                      <span className="text-gray-400">❌</span>
-                    ) : (
-                      <span className="text-gray-400 text-xl">?</span>
-                    )}
+            <ScratchCard 
+              gameResult={gameResult}
+              isPlaying={isPlaying}
+              turboMode={turboMode}
+              onRevealComplete={handleRevealComplete}
+            />
+            
+            {/* Resultado após revelação */}
+            {gameResult && !isPlaying && (
+              <div className={`mt-4 text-center p-4 rounded-lg border ${
+                gameResult.isWinner 
+                  ? 'bg-green-500/20 border-green-500' 
+                  : 'bg-red-500/20 border-red-500'
+              }`}>
+                {gameResult.isWinner ? (
+                  <div>
+                    <div className="text-green-400 font-bold text-2xl mb-2">
+                      🎉 PARABÉNS! 🎉
+                    </div>
+                    <div className="text-white text-lg">
+                      Você ganhou <span className="font-bold text-green-400">
+                        {formatCurrency(gameResult.prizeAmount)}
+                      </span>
+                    </div>
+                    <div className="text-green-300 text-sm">
+                      Multiplicador: {gameResult.multiplier}x
+                    </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Resultado */}
-              {gameResult && (
-                <div className={`text-center p-4 rounded-lg mb-4 border ${
-                  gameResult.isWinner 
-                    ? 'bg-green-500/20 border-green-500' 
-                    : 'bg-red-500/20 border-red-500'
-                }`}>
-                  {gameResult.isWinner ? (
-                    <div>
-                      <div className="text-green-400 font-bold text-2xl mb-2">
-                        🎉 PARABÉNS! 🎉
-                      </div>
-                      <div className="text-white text-lg">
-                        Você ganhou <span className="font-bold text-green-400">
-                          {formatCurrency(gameResult.prizeAmount)}
-                        </span>
-                      </div>
-                      <div className="text-green-300 text-sm">
-                        Multiplicador: {gameResult.multiplier}x
-                      </div>
+                ) : (
+                  <div>
+                    <div className="text-red-400 font-bold text-lg mb-2">
+                      Não foi dessa vez...
                     </div>
-                  ) : (
-                    <div>
-                      <div className="text-red-400 font-bold text-lg mb-2">
-                        Não foi dessa vez...
-                      </div>
-                      <div className="text-gray-300 text-sm">
-                        Tente novamente!
-                      </div>
+                    <div className="text-gray-300 text-sm">
+                      Tente novamente!
                     </div>
-                  )}
-                </div>
-              )}
-
-              <div className="text-center text-gray-300 text-sm mb-4">
-                {isPlaying 
-                  ? 'Aguarde o resultado...' 
-                  : 'Clique em "Jogar" para começar'
-                }
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Controles do Jogo */}
@@ -295,7 +279,7 @@ function App() {
               {/* Controles em linha */}
               <div className="grid grid-cols-4 gap-2">
                 <button 
-                  onClick={playGame}
+                  onClick={() => playGame(true)}
                   disabled={isPlaying || balance < betAmount}
                   className="h-14 bg-gradient-to-b from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 disabled:opacity-50 text-white font-bold border-2 border-green-400 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
                 >
