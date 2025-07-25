@@ -102,6 +102,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUserBalance = (newBalance) => {
+    if (user) {
+      setUser(prevUser => ({
+        ...prevUser,
+        balance: newBalance
+      }));
+    }
+  };
+
   const value = {
     user,
     tenant,
@@ -111,6 +120,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    updateUserBalance,
     isAuthenticated: !!user
   };
 
