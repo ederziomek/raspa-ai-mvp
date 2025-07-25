@@ -21,8 +21,8 @@ const GameCard = ({
   const [autoRounds, setAutoRounds] = useState(0);
   const [showAutoOptions, setShowAutoOptions] = useState(false);
   const [showVictoryPopup, setShowVictoryPopup] = useState(false);
+  const [showLossPopup, setShowLossPopup] = useState(false); // NOVO: POP-UP PARA PERDAS
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showTopNotification, setShowTopNotification] = useState(false); // NOVA NOTIFICAÇÃO NO TOPO
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
@@ -129,8 +129,8 @@ const GameCard = ({
       setBalanceUpdated(false);
       setRevealedArea(0);
       setShowVictoryPopup(false);
+      setShowLossPopup(false); // RESET POP-UP DE PERDA
       setShowConfetti(false);
-      setShowTopNotification(false); // RESETA NOTIFICAÇÃO NO TOPO
     }
   }, [gameResult, generateSymbols]);
 
@@ -145,8 +145,8 @@ const GameCard = ({
       setBalanceUpdated(false);
       setRevealedArea(0);
       setShowVictoryPopup(false);
+      setShowLossPopup(false); // ESCONDE POP-UP DE PERDA
       setShowConfetti(false);
-      setShowTopNotification(false); // ESCONDE NOTIFICAÇÃO QUANDO INICIA NOVO JOGO
       
       // Limpa o canvas único
       if (canvasRef.current) {
@@ -373,27 +373,43 @@ const GameCard = ({
         setScratchProgress(100);
         setRevealedArea(100);
         
-        // Se ganhou, mostra confetes e notificação no topo
-        if (gameResult && gameResult.isWinner) {
-          setShowConfetti(true);
-          setTimeout(() => {
-            setShowTopNotification(true); // MOSTRA NOTIFICAÇÃO NO TOPO EM VEZ DO POPUP
-          }, 500);
-          
-          // Para confetes depois de 3 segundos
-          setTimeout(() => {
-            setShowConfetti(false);
-          }, 3000);
-        }
+        // CORREÇÃO: BACKGROUND VERDE TAMBÉM NO TURBO
+        setTimeout(() => {
+          // Aplica background verde nos saquinhos vencedores
+          if (gameResult && gameResult.isWinner) {
+            const cells = document.querySelectorAll('.symbol-cell');
+            cells.forEach((cell, index) => {
+              if (symbols[index] === winningIcon) {
+                cell.classList.add('winner-cell');
+              }
+            });
+            
+            setShowConfetti(true);
+            setTimeout(() => {
+              setShowVictoryPopup(true); // MOSTRA POP-UP DE VITÓRIA
+            }, 500);
+            
+            // Para confetes depois de 3 segundos
+            setTimeout(() => {
+              setShowConfetti(false);
+            }, 3000);
+          } else {
+            // MOSTRA POP-UP DE PERDA
+            setTimeout(() => {
+              setShowLossPopup(true);
+            }, 500);
+          }
+        }, 100);
       }
     };
     
     fadeOut();
-  }, [gameCompleted, gameResult]);
+  }, [gameCompleted, gameResult, symbols]);
 
-  // Atualiza saldo apenas quando o jogo é completado
+  // CORREÇÃO: Atualiza saldo APENAS quando o jogo é completado E os pop-ups são fechados
   useEffect(() => {
-    if (gameCompleted && !balanceUpdated && gameResult && onBalanceUpdate) {
+    if (gameCompleted && !balanceUpdated && gameResult && onBalanceUpdate && 
+        !showVictoryPopup && !showLossPopup) {
       setBalanceUpdated(true);
       
       setTimeout(() => {
@@ -407,9 +423,9 @@ const GameCard = ({
           setAutoActive(false);
           setAutoRounds(0);
         }
-      }, 800);
+      }, 300);
     }
-  }, [gameCompleted, balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds]);
+  }, [gameCompleted, balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds, showVictoryPopup, showLossPopup]);
 
   // Handlers de mouse/touch
   const handleStart = useCallback((e) => {
@@ -472,6 +488,15 @@ const GameCard = ({
     onPlay(turboActive);
   };
 
+  // FUNÇÃO PARA FECHAR POP-UPS
+  const closeVictoryPopup = () => {
+    setShowVictoryPopup(false);
+  };
+
+  const closeLossPopup = () => {
+    setShowLossPopup(false);
+  };
+
   // Componente de Confetes
   const ConfettiAnimation = () => {
     if (!showConfetti) return null;
@@ -508,21 +533,48 @@ const GameCard = ({
     );
   };
 
-  // NOVA NOTIFICAÇÃO NO TOPO
-  const TopNotification = () => {
-    if (!showTopNotification || !gameResult?.isWinner) return null;
+  // POP-UP DE VITÓRIA
+  const VictoryPopup = () => {
+    if (!showVictoryPopup || !gameResult?.isWinner) return null;
     
     return (
-      <div className="absolute top-4 left-4 right-4 z-50 animate-bounce">
-        <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl border-2 border-green-300 shadow-2xl">
-          <div className="flex items-center justify-center gap-2 text-white">
-            <span className="text-2xl">🎉</span>
-            <div className="text-center">
-              <div className="font-bold text-lg">PARABÉNS!</div>
-              <div className="text-sm">Você ganhou <span className="font-bold text-xl">{formatCurrency(gameResult.prizeAmount)}</span></div>
-              <div className="text-xs text-green-100">Multiplicador: {gameResult.multiplier.toFixed(1)}x</div>
-            </div>
-            <span className="text-2xl">🎉</span>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeVictoryPopup}>
+        <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl border-2 border-green-300 shadow-2xl max-w-sm mx-4 animate-bounce">
+          <div className="text-center text-white">
+            <div className="text-4xl mb-4">🎉</div>
+            <div className="font-bold text-2xl mb-2">PARABÉNS!</div>
+            <div className="text-lg mb-2">Você ganhou</div>
+            <div className="font-bold text-3xl mb-2">{formatCurrency(gameResult.prizeAmount)}</div>
+            <div className="text-sm text-green-100 mb-4">Multiplicador: {gameResult.multiplier.toFixed(1)}x</div>
+            <button 
+              onClick={closeVictoryPopup}
+              className="bg-white text-green-600 px-6 py-2 rounded-lg font-bold hover:bg-green-50 transition-colors"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // POP-UP DE PERDA
+  const LossPopup = () => {
+    if (!showLossPopup || (gameResult && gameResult.isWinner)) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeLossPopup}>
+        <div className="bg-gradient-to-br from-red-500 to-red-600 p-6 rounded-xl border-2 border-red-300 shadow-2xl max-w-sm mx-4 animate-bounce">
+          <div className="text-center text-white">
+            <div className="text-4xl mb-4">😔</div>
+            <div className="font-bold text-2xl mb-2">Não foi dessa vez...</div>
+            <div className="text-lg mb-4">Tente novamente!</div>
+            <button 
+              onClick={closeLossPopup}
+              className="bg-white text-red-600 px-6 py-2 rounded-lg font-bold hover:bg-red-50 transition-colors"
+            >
+              Continuar
+            </button>
           </div>
         </div>
       </div>
@@ -534,8 +586,9 @@ const GameCard = ({
       {/* Confetes */}
       <ConfettiAnimation />
       
-      {/* NOVA NOTIFICAÇÃO NO TOPO */}
-      <TopNotification />
+      {/* POP-UPS */}
+      <VictoryPopup />
+      <LossPopup />
       
       {/* Header */}
       <div className="text-center mb-4">
@@ -584,29 +637,17 @@ const GameCard = ({
           {symbols.map((symbol, index) => (
             <div
               key={index}
-              className={`relative aspect-square rounded-lg overflow-hidden border border-gray-600 ${
-                gameCompleted && gameResult?.isWinner && symbol === winningIcon
-                  ? 'bg-gradient-to-br from-green-500 to-green-600' // BACKGROUND VERDE PARA SAQUINHOS VENCEDORES
-                  : 'bg-gradient-to-br from-gray-700 to-gray-800'
-              }`}
+              className={`symbol-cell relative aspect-square rounded-lg overflow-hidden border border-gray-600 bg-gradient-to-br from-gray-700 to-gray-800`}
             >
               <div className="absolute inset-0 flex items-center justify-center text-3xl sm:text-4xl font-bold">
                 {gameStarted ? (
-                  <span 
-                    className={`transition-all duration-500 ${
-                      symbol === winningIcon ? 'text-white animate-pulse' : 'text-white'
-                    }`}
-                  >
+                  <span className="text-white">
                     {symbol}
                   </span>
                 ) : (
                   <span className="text-gray-500 text-lg">?</span>
                 )}
               </div>
-
-              {gameCompleted && gameResult?.isWinner && symbol === winningIcon && (
-                <div className="absolute inset-0 bg-green-400 opacity-20 animate-pulse rounded-lg" />
-              )}
             </div>
           ))}
         </div>
@@ -638,18 +679,6 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Resultado após revelação - SEM POPUP, APENAS PARA PERDAS */}
-      {gameResult && !isPlaying && gameCompleted && !gameResult.isWinner && (
-        <div className="mb-4 text-center p-4 rounded-lg border-2 transition-all duration-500 bg-red-500/20 border-red-500 shadow-red-500/20 shadow-lg">
-          <div className="text-red-400 font-bold text-lg mb-2">
-            😔 Não foi dessa vez...
-          </div>
-          <div className="text-gray-300 text-sm mb-2">
-            Tente novamente!
-          </div>
-        </div>
-      )}
-
       {/* Informações do jogo */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
@@ -663,8 +692,8 @@ const GameCard = ({
         <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
           <div className="text-green-400 text-xs font-medium mb-1">GANHO</div>
           <div className="text-white text-sm font-bold">
-            {/* CORREÇÃO: SÓ MOSTRA GANHO APÓS COMPLETAR O JOGO */}
-            {formatCurrency(gameCompleted && gameResult?.prizeAmount ? gameResult.prizeAmount : 0)}
+            {/* CORREÇÃO: SÓ MOSTRA GANHO APÓS COMPLETAR O JOGO E FECHAR POP-UPS */}
+            {formatCurrency(gameCompleted && balanceUpdated && gameResult?.prizeAmount ? gameResult.prizeAmount : 0)}
           </div>
         </div>
       </div>
@@ -762,6 +791,19 @@ const GameCard = ({
           </div>
         )}
       </div>
+
+      {/* CSS para background verde dos vencedores */}
+      <style jsx>{`
+        .winner-cell {
+          background: linear-gradient(135deg, #48bb78, #38a169) !important;
+          animation: winner-pulse 2s infinite;
+        }
+        
+        @keyframes winner-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+      `}</style>
     </div>
   );
 };
