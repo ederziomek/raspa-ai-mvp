@@ -1,0 +1,8 @@
+# Ignorar frontend durante deploy do backend
+frontend/
+*.md
+.git/
+.gitignore
+todo.md
+relatorio-*.md
+
