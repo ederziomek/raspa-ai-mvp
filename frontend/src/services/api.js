@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // URL base da API (Railway)
-const API_BASE_URL = 'https://raspa-ai-mvp-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://raspa-ai-mvp-production.up.railway.app';
 
 // Configuração do axios
 const api = axios.create({

@@ -19,7 +19,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://raspa-ai-mvp-production.up.railway.app'
+    'https://raspa-ai-mvp-production.up.railway.app',
+    'https://raspa-ai-mvp-frontend.up.railway.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
