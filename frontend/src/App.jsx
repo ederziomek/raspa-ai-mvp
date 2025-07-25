@@ -1,29 +1,18 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import Login from './pages/Login.jsx';
-import Register from './pages/Register.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import './App.css';
+import { AuthProvider } from './contexts/AuthContext';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="App">
+        <div className="min-h-screen bg-gradient-to-br from-orange-400 via-orange-500 to-yellow-500">
           <Routes>
-            {/* Rota raiz - redireciona para dashboard se autenticado, senão para login */}
-            <Route 
-              path="/" 
-              element={<Navigate to="/dashboard" replace />} 
-            />
-            
-            {/* Rotas públicas */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            
-            {/* Rotas protegidas */}
             <Route 
               path="/dashboard" 
               element={
@@ -32,12 +21,7 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            
-            {/* Rota 404 - redireciona para dashboard */}
-            <Route 
-              path="*" 
-              element={<Navigate to="/dashboard" replace />} 
-            />
+            <Route path="/" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
       </Router>
