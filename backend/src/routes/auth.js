@@ -243,5 +243,39 @@ router.put('/password', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/status
+ * Verificar status de autenticação
+ */
+router.get('/status', async (req, res) => {
+  try {
+    const user = await getCurrentUser(req);
+    
+    if (user) {
+      res.json({
+        authenticated: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          balance: user.balance,
+          is_admin: user.is_admin
+        }
+      });
+    } else {
+      res.json({
+        authenticated: false,
+        user: null
+      });
+    }
+  } catch (error) {
+    console.error('Erro ao verificar status:', error);
+    res.status(500).json({
+      error: 'Erro interno',
+      message: 'Erro ao verificar status de autenticação'
+    });
+  }
+});
+
 module.exports = router;
 

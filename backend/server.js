@@ -3,50 +3,47 @@ const cors = require('cors');
 const helmet = require('helmet');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Configuração de proxy para Railway
-app.set('trust proxy', 1);
-
-// Helmet para segurança
+// Middleware de segurança
 app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false
 }));
 
-// CORS - permitir todas as origens para desenvolvimento
+// CORS configurado para permitir frontend
 app.use(cors({
-  origin: true,
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://raspa-ai-mvp-production.up.railway.app'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
-// Rate limiting com configuração para Railway
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo 100 requests por IP por janela
-  message: 'Muitas tentativas, tente novamente em 15 minutos',
-  standardHeaders: true,
-  legacyHeaders: false,
-  trustProxy: true,
-  skip: (req) => {
-    // Skip rate limiting para rotas de setup e health
-    return req.path === '/setup-production' || req.path === '/health';
+  max: 100, // máximo 100 requests por IP
+  message: {
+    error: 'Muitas tentativas',
+    message: 'Tente novamente em 15 minutos'
   }
 });
-
 app.use(limiter);
 
-// Parsing de JSON e URL encoded
+// Middleware de parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Configuração de sessões
+// Configuração de sessão
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'raspa-ai-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'raspa-ai-mvp-secret-key-2025',
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -56,25 +53,7 @@ app.use(session({
   }
 }));
 
-// Rota especial de setup (ANTES do middleware de tenant)
-app.get('/setup-production', async (req, res) => {
-  try {
-    const setupProduction = require('./src/utils/setup-production');
-    await setupProduction();
-    res.json({
-      message: 'Setup de produção executado com sucesso!',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Erro no setup:', error);
-    res.status(500).json({
-      error: 'Erro no setup de produção',
-      message: error.message
-    });
-  }
-});
-
-// Health check
+// Rota de health check (ANTES do middleware de tenant)
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -83,11 +62,26 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Middleware de detecção de tenant (corrigido)
+// Rota de setup de produção (ANTES do middleware de tenant)
+app.get('/setup-production', async (req, res) => {
+  try {
+    const { seedUsers } = require('./src/utils/seed-users');
+    const result = await seedUsers();
+    res.json(result);
+  } catch (error) {
+    console.error('Erro no setup:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Middleware de tenant
 const tenantMiddleware = require('./src/middleware/tenant-fixed');
 app.use(tenantMiddleware);
 
-// Rotas públicas (sem autenticação)
+// Rota principal
 app.get('/', (req, res) => {
   res.json({
     message: 'Raspa.ai MVP API',
@@ -127,6 +121,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Database: SQLite`);
   console.log(`🔗 URL: http://localhost:${PORT}`);
 });
-
-module.exports = app;
 
