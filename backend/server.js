@@ -93,6 +93,21 @@ app.get('/fix-users', async (req, res) => {
   }
 });
 
+// Rota de correção direta via SQL
+app.get('/direct-fix', async (req, res) => {
+  try {
+    const { directFix } = require('./src/utils/direct-fix');
+    const result = await directFix();
+    res.json(result);
+  } catch (error) {
+    console.error('Erro na correção direta:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Middleware de tenant
 const tenantMiddleware = require('./src/middleware/tenant-fixed');
 app.use(tenantMiddleware);
