@@ -28,8 +28,10 @@ const useGameLogic = () => {
       setGameResult({
         gameId: result.gameId,
         multiplier: result.multiplier,
-        winAmount: result.winAmount,
+        prizeAmount: result.prizeAmount,
         netResult: result.netResult,
+        symbols: result.symbols,
+        winningSymbol: result.winningSymbol,
         betAmount: betAmount,
         timestamp: new Date()
       });
@@ -52,8 +54,8 @@ const useGameLogic = () => {
       // Update user stats
       setUserStats(prev => ({
         gamesPlayed: prev.gamesPlayed + 1,
-        totalWon: prev.totalWon + gameResult.winAmount,
-        biggestWin: Math.max(prev.biggestWin, gameResult.winAmount)
+        totalWon: prev.totalWon + gameResult.prizeAmount,
+        biggestWin: Math.max(prev.biggestWin, gameResult.prizeAmount)
       }));
 
       // Add to game history

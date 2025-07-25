@@ -112,13 +112,13 @@ router.post('/play', requireTenant, async (req, res) => {
       { value: 2, weight: 15 },     // 15% chance de 2x
       { value: 3, weight: 8 },      // 8% chance de 3x
       { value: 5, weight: 5 },      // 5% chance de 5x
-      { value: 10, weight: 3 },     // 3% chance de 10x
-      { value: 20, weight: 2 },     // 2% chance de 20x
-      { value: 50, weight: 1 },     // 1% chance de 50x
-      { value: 100, weight: 0.7 },  // 0.7% chance de 100x
-      { value: 500, weight: 0.2 },  // 0.2% chance de 500x
-      { value: 1000, weight: 0.08 }, // 0.08% chance de 1000x
-      { value: 5000, weight: 0.02 }  // 0.02% chance de 5000x
+      { value: 12, weight: 3 },     // 3% chance de 12x
+      { value: 25, weight: 2 },     // 2% chance de 25x
+      { value: 70, weight: 1 },     // 1% chance de 70x
+      { value: 140, weight: 0.7 },  // 0.7% chance de 140x
+      { value: 320, weight: 0.2 },  // 0.2% chance de 320x
+      { value: 650, weight: 0.08 }, // 0.08% chance de 650x
+      { value: 1360, weight: 0.02 } // 0.02% chance de 1360x
     ];
     
     // Seleção ponderada do multiplicador
@@ -134,11 +134,40 @@ router.post('/play', requireTenant, async (req, res) => {
       }
     }
     
-    const winAmount = betValue * selectedMultiplier;
-    const netResult = winAmount - betValue; // Ganho líquido (pode ser negativo)
+    const prizeAmount = betValue * selectedMultiplier;
+    const netResult = prizeAmount - betValue; // Ganho líquido (pode ser negativo)
+    
+    // Gerar símbolos para a raspadinha (9 símbolos)
+    const symbols = ['🍒', '🍋', '⭐', '💎', '🔔', '🍀', '🎯', '💰'];
+    const gameSymbols = [];
+    let winningSymbol = null;
+    
+    // Se ganhou, garantir que há símbolos iguais
+    if (selectedMultiplier > 0) {
+      winningSymbol = symbols[Math.floor(Math.random() * symbols.length)];
+      // Adicionar 3 símbolos iguais (vencedores)
+      for (let i = 0; i < 3; i++) {
+        gameSymbols.push(winningSymbol);
+      }
+      // Completar com símbolos aleatórios
+      for (let i = 3; i < 9; i++) {
+        gameSymbols.push(symbols[Math.floor(Math.random() * symbols.length)]);
+      }
+    } else {
+      // Se perdeu, garantir que não há 3 símbolos iguais
+      for (let i = 0; i < 9; i++) {
+        gameSymbols.push(symbols[Math.floor(Math.random() * symbols.length)]);
+      }
+    }
+    
+    // Embaralhar símbolos
+    for (let i = gameSymbols.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [gameSymbols[i], gameSymbols[j]] = [gameSymbols[j], gameSymbols[i]];
+    }
     
     // Atualizar saldo do usuário
-    const newBalance = req.user.balance - betValue + winAmount;
+    const newBalance = req.user.balance - betValue + prizeAmount;
     await req.user.update({ 
       balance: newBalance,
       last_login: new Date()
@@ -150,12 +179,15 @@ router.post('/play', requireTenant, async (req, res) => {
       tenant_id: req.tenant.id,
       bet_amount: betValue,
       multiplier: selectedMultiplier,
-      win_amount: winAmount,
-      net_result: netResult,
-      played_at: new Date()
+      prize_amount: prizeAmount,
+      symbols: gameSymbols,
+      winning_symbol: winningSymbol,
+      played_at: new Date(),
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent')
     });
     
-    // Registrar transação
+    // Registrar transação de aposta
     await Transaction.create({
       user_id: req.user.id,
       tenant_id: req.tenant.id,
@@ -166,12 +198,13 @@ router.post('/play', requireTenant, async (req, res) => {
       reference_type: 'game'
     });
     
-    if (winAmount > 0) {
+    // Registrar transação de prêmio se ganhou
+    if (prizeAmount > 0) {
       await Transaction.create({
         user_id: req.user.id,
         tenant_id: req.tenant.id,
         type: 'game_win',
-        amount: winAmount,
+        amount: prizeAmount,
         description: `Prêmio ${selectedMultiplier}x - Jogo #${game.id}`,
         reference_id: game.id,
         reference_type: 'game'
@@ -181,9 +214,11 @@ router.post('/play', requireTenant, async (req, res) => {
     res.json({
       gameId: game.id,
       multiplier: selectedMultiplier,
-      winAmount: winAmount,
+      prizeAmount: prizeAmount,
       netResult: netResult,
       newBalance: newBalance,
+      symbols: gameSymbols,
+      winningSymbol: winningSymbol,
       message: selectedMultiplier > 0 ? 'Parabéns! Você ganhou!' : 'Que pena! Tente novamente.'
     });
     
