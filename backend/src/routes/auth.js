@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { User, Tenant } = require('../models');
 const { 
-  requireTenant, 
   authMiddleware, 
   createUserSession, 
   destroyUserSession,
@@ -15,7 +14,7 @@ const router = express.Router();
  * POST /api/auth/register
  * Registrar novo usuário
  */
-router.post('/register', requireTenant, async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { email, password, name } = req.body;
     
@@ -72,7 +71,7 @@ router.post('/register', requireTenant, async (req, res) => {
  * POST /api/auth/login
  * Fazer login
  */
-router.post('/login', requireTenant, async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
