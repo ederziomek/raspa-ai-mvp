@@ -18,10 +18,7 @@ router.post('/login', async (req, res) => {
     }
     
     // Buscar usuário
-    const user = await User.findOne({ 
-      where: { email, tenant_id: req.tenant.id },
-      include: [{ model: Tenant, as: 'tenant' }]
-    });
+    const user = await User.findByEmailAndTenant(email, req.tenant.id);
     
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas', message: 'Email ou senha incorretos' });
