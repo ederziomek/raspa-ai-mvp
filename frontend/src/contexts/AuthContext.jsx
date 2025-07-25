@@ -46,12 +46,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.login(email, password);
       
-      if (response.success) {
+      // Se há usuário na resposta, login foi bem-sucedido
+      if (response.user) {
         setUser(response.user);
         setIsAuthenticated(true);
         return { success: true };
       } else {
-        return { success: false, message: response.message };
+        return { success: false, message: response.message || 'Credenciais inválidas' };
       }
     } catch (error) {
       console.error('Erro no login:', error);
@@ -66,12 +67,13 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.register(userData);
       
-      if (response.success) {
+      // Se há usuário na resposta, registro foi bem-sucedido
+      if (response.user) {
         setUser(response.user);
         setIsAuthenticated(true);
         return { success: true };
       } else {
-        return { success: false, message: response.message };
+        return { success: false, message: response.message || 'Erro no registro' };
       }
     } catch (error) {
       console.error('Erro no registro:', error);
@@ -97,11 +99,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.updateProfile(profileData);
       
-      if (response.success) {
+      // Se há usuário na resposta, atualização foi bem-sucedida
+      if (response.user) {
         setUser(response.user);
         return { success: true };
       } else {
-        return { success: false, message: response.message };
+        return { success: false, message: response.message || 'Erro ao atualizar perfil' };
       }
     } catch (error) {
       console.error('Erro ao atualizar perfil:', error);
