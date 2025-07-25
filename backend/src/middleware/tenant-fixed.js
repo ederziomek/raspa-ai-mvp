@@ -40,8 +40,8 @@ module.exports = async (req, res, next) => {
       console.log(`🔧 Tenant não encontrado, usando padrão para: ${subdomain}`);
       tenant = DEFAULT_TENANT;
       
-      // Se for o subdomínio do Railway, criar no banco
-      if (subdomain === 'raspa-ai-mvp-production') {
+      // Se for o subdomínio do Railway (backend ou frontend), criar no banco
+      if (subdomain === 'raspa-ai-mvp-production' || subdomain === 'web-production-feb0a') {
         try {
           const createdTenant = await Tenant.findOrCreate({
             where: { subdomain: 'raspa-ai-mvp-production' },
