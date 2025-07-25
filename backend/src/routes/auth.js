@@ -1,9 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const { User, Tenant } = require('../models');
-const { generateToken, authenticateJWT } = require('../middleware/jwt');
-
-const router = express.Router();hMiddleware, 
+const { 
+  requireTenant, 
+  authMiddleware, 
   createUserSession, 
   destroyUserSession,
   getCurrentUser 

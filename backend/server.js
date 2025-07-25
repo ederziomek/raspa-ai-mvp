@@ -124,7 +124,6 @@ app.get('/', (req, res) => {
 
 // Rotas da API
 app.use('/api/auth', require('./src/routes/auth'));
-app.use('/api/auth-jwt', require('./src/routes/auth-jwt'));
 app.use('/api/tenant', require('./src/routes/tenant'));
 app.use('/api/game', require('./src/routes/game'));
 app.use('/api/admin', require('./src/routes/admin'));
