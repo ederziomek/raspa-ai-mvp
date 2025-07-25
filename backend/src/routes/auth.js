@@ -1,8 +1,9 @@
 const express = require('express');
-const { User } = require('../models');
-const { requireTenant } = require('../middleware/tenant');
-const { 
-  authMiddleware, 
+const bcrypt = require('bcrypt');
+const { User, Tenant } = require('../models');
+const { generateToken, authenticateJWT } = require('../middleware/jwt');
+
+const router = express.Router();hMiddleware, 
   createUserSession, 
   destroyUserSession,
   getCurrentUser 

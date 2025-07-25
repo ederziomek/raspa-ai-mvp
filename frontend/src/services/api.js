@@ -1,22 +1,26 @@
 import axios from 'axios';
 
-// URL base da API (Railway)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://raspa-ai-mvp-production.up.railway.app';
+// URL base da API
+const API_URL = import.meta.env.VITE_API_URL || 'https://raspa-ai-mvp-production.up.railway.app';
 
-// Configuração do axios
+// Criar instância do axios
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_URL,
   timeout: 10000,
-  withCredentials: true, // Para enviar cookies de sessão
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
-  },
+    'Content-Type': 'application/json'
+  }
 });
 
-// Interceptor para requests
+// Interceptor para adicionar token JWT
 api.interceptors.request.use(
   (config) => {
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log('🔄 API Request:', config.method?.toUpperCase(), config.url);
     return config;
   },
   (error) => {
@@ -25,26 +29,20 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor para responses
+// Interceptor para tratar respostas
 api.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    console.log('✅ API Response:', response.status, response.config.url);
     return response;
   },
   (error) => {
     console.error('❌ Response Error:', error.response?.status, error.response?.data);
     
-    // Tratamento de erros específicos
+    // Se token expirou, limpar localStorage
     if (error.response?.status === 401) {
-      // Usuário não autenticado
-      console.log('🔒 Usuário não autenticado');
-      // Redirecionar para login se necessário
-    } else if (error.response?.status === 403) {
-      // Acesso negado
-      console.log('🚫 Acesso negado');
-    } else if (error.response?.status >= 500) {
-      // Erro do servidor
-      console.log('🔥 Erro do servidor');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('tenant');
     }
     
     return Promise.reject(error);

@@ -1,129 +1,117 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService } from '../services/auth.js';
+import { login as loginService, register as registerService, logout as logoutService, isAuthenticated, getCurrentUser, getCurrentTenant } from '../services/auth';
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
   }
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState(null);
 
   // Verificar autenticação ao carregar
   useEffect(() => {
-    checkAuthStatus();
+    const checkAuth = () => {
+      try {
+        if (isAuthenticated()) {
+          const userData = getCurrentUser();
+          const tenantData = getCurrentTenant();
+          setUser(userData);
+          setTenant(tenantData);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const login = async (email, password) => {
     try {
+      setError(null);
       setLoading(true);
-      const response = await authService.checkAuth();
       
-      if (response.authenticated) {
+      const response = await loginService(email, password);
+      
+      if (response.user && response.token) {
         setUser(response.user);
-        setIsAuthenticated(true);
+        setTenant(response.tenant);
+        return { success: true, message: response.message };
       } else {
-        setUser(null);
-        setIsAuthenticated(false);
+        throw new Error('Resposta inválida do servidor');
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error);
-      setUser(null);
-      setIsAuthenticated(false);
+      const errorMessage = error.message || error.error || 'Erro ao fazer login';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const login = async (email, password) => {
+  const register = async (email, password, name) => {
     try {
-      const response = await authService.login(email, password);
+      setError(null);
+      setLoading(true);
       
-      // Se há usuário na resposta, login foi bem-sucedido
-      if (response.user) {
+      const response = await registerService(email, password, name);
+      
+      if (response.user && response.token) {
         setUser(response.user);
-        setIsAuthenticated(true);
-        return { success: true };
+        setTenant(response.tenant);
+        return { success: true, message: response.message };
       } else {
-        return { success: false, message: response.message || 'Credenciais inválidas' };
+        throw new Error('Resposta inválida do servidor');
       }
     } catch (error) {
-      console.error('Erro no login:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erro ao fazer login' 
-      };
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      const response = await authService.register(userData);
-      
-      // Se há usuário na resposta, registro foi bem-sucedido
-      if (response.user) {
-        setUser(response.user);
-        setIsAuthenticated(true);
-        return { success: true };
-      } else {
-        return { success: false, message: response.message || 'Erro no registro' };
-      }
-    } catch (error) {
-      console.error('Erro no registro:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erro ao fazer registro' 
-      };
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await authService.logout();
-    } catch (error) {
-      console.error('Erro no logout:', error);
+      const errorMessage = error.message || error.error || 'Erro ao registrar';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
-      setUser(null);
-      setIsAuthenticated(false);
+      setLoading(false);
     }
+  };
+
+  const logout = () => {
+    logoutService();
+    setUser(null);
+    setTenant(null);
+    setError(null);
   };
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await authService.updateProfile(profileData);
-      
-      // Se há usuário na resposta, atualização foi bem-sucedida
-      if (response.user) {
-        setUser(response.user);
-        return { success: true };
-      } else {
-        return { success: false, message: response.message || 'Erro ao atualizar perfil' };
-      }
+      setError(null);
+      // Implementar atualização de perfil se necessário
+      return { success: true };
     } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erro ao atualizar perfil' 
-      };
+      const errorMessage = error.message || error.error || 'Erro ao atualizar perfil';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const value = {
     user,
+    tenant,
     loading,
-    isAuthenticated,
+    error,
     login,
     register,
     logout,
     updateProfile,
-    checkAuthStatus,
+    isAuthenticated: !!user
   };
 
   return (

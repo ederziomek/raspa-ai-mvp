@@ -20,7 +20,7 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'https://raspa-ai-mvp-production.up.railway.app',
-    'https://raspa-ai-mvp-frontend.up.railway.app'
+    'https://web-production-feb0a.up.railway.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -124,6 +124,7 @@ app.get('/', (req, res) => {
 
 // Rotas da API
 app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api/auth-jwt', require('./src/routes/auth-jwt'));
 app.use('/api/tenant', require('./src/routes/tenant'));
 app.use('/api/game', require('./src/routes/game'));
 app.use('/api/admin', require('./src/routes/admin'));

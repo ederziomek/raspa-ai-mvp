@@ -1,67 +1,86 @@
-import api from './api.js';
+import api from './api';
 
-export const authService = {
-  // Verificar status de autenticação
-  async checkAuth() {
-    try {
-      const response = await api.get('/api/auth/status');
-      return response.data;
-    } catch (error) {
-      throw error;
+// Login com JWT
+export const login = async (email, password) => {
+  try {
+    const response = await api.post('/api/auth-jwt/login', {
+      email,
+      password
+    });
+    
+    // Salvar token e dados no localStorage
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('tenant', JSON.stringify(response.data.tenant));
     }
-  },
+    
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { error: 'Erro na comunicação com servidor' };
+  }
+};
 
-  // Fazer login
-  async login(email, password) {
-    try {
-      const response = await api.post('/api/auth/login', {
-        email,
-        password,
-      });
-      return response.data;
-    } catch (error) {
-      throw error;
+// Registro com JWT
+export const register = async (email, password, name) => {
+  try {
+    const response = await api.post('/api/auth-jwt/register', {
+      email,
+      password,
+      name
+    });
+    
+    // Salvar token e dados no localStorage
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('tenant', JSON.stringify(response.data.tenant));
     }
-  },
+    
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { error: 'Erro na comunicação com servidor' };
+  }
+};
 
-  // Fazer registro
-  async register(userData) {
-    try {
-      const response = await api.post('/api/auth/register', userData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
+// Logout
+export const logout = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('tenant');
+};
 
-  // Fazer logout
-  async logout() {
-    try {
-      const response = await api.post('/api/auth/logout');
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
+// Verificar se está autenticado
+export const isAuthenticated = () => {
+  const token = localStorage.getItem('token');
+  const user = localStorage.getItem('user');
+  return !!(token && user);
+};
 
-  // Obter perfil do usuário
-  async getProfile() {
-    try {
-      const response = await api.get('/api/auth/profile');
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
+// Obter usuário atual
+export const getCurrentUser = () => {
+  const user = localStorage.getItem('user');
+  return user ? JSON.parse(user) : null;
+};
 
-  // Atualizar perfil
-  async updateProfile(profileData) {
-    try {
-      const response = await api.put('/api/auth/profile', profileData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
+// Obter tenant atual
+export const getCurrentTenant = () => {
+  const tenant = localStorage.getItem('tenant');
+  return tenant ? JSON.parse(tenant) : null;
+};
+
+// Obter token
+export const getToken = () => {
+  return localStorage.getItem('token');
+};
+
+// Verificar status de autenticação no servidor
+export const checkAuthStatus = async () => {
+  try {
+    const response = await api.get('/api/auth-jwt/status');
+    return response.data;
+  } catch (error) {
+    return { authenticated: false };
+  }
 };
 
