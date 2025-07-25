@@ -83,8 +83,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Middleware de detecção de tenant
-const tenantMiddleware = require('./src/middleware/tenant');
+// Middleware de detecção de tenant (corrigido)
+const tenantMiddleware = require('./src/middleware/tenant-fixed');
 app.use(tenantMiddleware);
 
 // Rotas públicas (sem autenticação)
