@@ -152,5 +152,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Database: SQLite`);
   console.log(`🔗 URL: http://localhost:${PORT}`);
+  console.log(`🔑 JWT Auth: Habilitado`);
 });
 
