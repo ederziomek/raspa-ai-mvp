@@ -12,8 +12,9 @@ module.exports = (sequelize) => {
       allowNull: false,
       unique: true,
       validate: {
-        isAlphanumeric: {
-          msg: 'Subdomínio deve conter apenas letras e números'
+        is: {
+          args: /^[a-zA-Z0-9-]+$/,
+          msg: 'Subdomínio deve conter apenas letras, números e hífens'
         },
         len: {
           args: [3, 50],
