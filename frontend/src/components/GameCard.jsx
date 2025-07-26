@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BET_VALUES, formatCurrency } from '../config/gameConfig';
+import { generateFortuneTigerGame, getFortuneTigerSymbols } from '../utils/fortuneTiger';
 
 const GameCard = ({ 
   balance,
@@ -22,8 +23,10 @@ const GameCard = ({
   const [autoRounds, setAutoRounds] = useState(0);
   const [showAutoOptions, setShowAutoOptions] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [messageType, setMessageType] = useState('default'); // 'default', 'win', 'loss'
-  const [currentMessage, setCurrentMessage] = useState(0); // 0 ou 1 para alternar mensagens
+  const [messageType, setMessageType] = useState('default');
+  const [currentMessage, setCurrentMessage] = useState(0);
+  const [fortuneTigerActive, setFortuneTigerActive] = useState(false);
+  const [winningLines, setWinningLines] = useState([]);
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
@@ -31,9 +34,8 @@ const GameCard = ({
   const autoIntervalRef = useRef(null);
   const messageIntervalRef = useRef(null);
 
-  // Apenas 4 ícones conforme solicitado
-  const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
-  const winningIcon = '💰';
+  // Símbolos do Fortune Tiger
+  const fortuneSymbols = getFortuneTigerSymbols();
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -43,109 +45,50 @@ const GameCard = ({
     }).format(value);
   };
 
-  // NOVO: Usa símbolos gerados pela configuração
+  // Gera símbolos usando a lógica do Fortune Tiger
   const generateSymbols = useCallback(() => {
     if (!gameResult) {
       return Array(9).fill('?');
     }
 
     if (gameResult.symbols && gameResult.symbols.length === 9) {
-      // Usa símbolos gerados pela configuração (ícones de notas/moedas)
       return gameResult.symbols.map(symbol => symbol.icon);
     }
     
-    // Fallback para símbolos padrão se não houver símbolos na configuração
-    const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
-    const winningIcon = '💰';
-    const symbols = [];
-    
-    if (gameResult.isWinner) {
-      // Se ganhou, coloca EXATAMENTE 3 saquinhos de dinheiro em posições ALEATÓRIAS
-      const positions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-      const shuffledPositions = positions.sort(() => Math.random() - 0.5);
-      const winPositions = shuffledPositions.slice(0, 3);
-      
-      for (let i = 0; i < 9; i++) {
-        if (winPositions.includes(i)) {
-          symbols[i] = winningIcon;
-        }
-      }
-      
-      // Preenche o resto garantindo MÁXIMO 2 de cada ícone normal
-      const remainingPositions = positions.filter(pos => !winPositions.includes(pos));
-      const iconCounts = { '⭐️': 0, '💎': 0, '☘️': 0, '🔥': 0 };
-      
-      for (let pos of remainingPositions) {
-        let selectedIcon;
-        let attempts = 0;
-        
-        do {
-          selectedIcon = gameIcons[Math.floor(Math.random() * gameIcons.length)];
-          attempts++;
-        } while (iconCounts[selectedIcon] >= 2 && attempts < 50);
-        
-        symbols[pos] = selectedIcon;
-        iconCounts[selectedIcon]++;
-      }
-    } else {
-      // Se perdeu, pode ter 0, 1 ou 2 saquinhos (NUNCA 3)
-      const numWinningIcons = Math.random() < 0.6 ? (Math.random() < 0.7 ? 1 : 2) : 0;
-      
-      if (numWinningIcons > 0) {
-        const positions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-        const shuffledPositions = positions.sort(() => Math.random() - 0.5);
-        const winPositions = shuffledPositions.slice(0, numWinningIcons);
-        
-        for (let pos of winPositions) {
-          symbols[pos] = winningIcon;
-        }
-      }
-      
-      // Preenche o resto garantindo MÁXIMO 2 de cada ícone (incluindo saquinhos já colocados)
-      const iconCounts = { '⭐️': 0, '💎': 0, '☘️': 0, '🔥': 0, '💰': numWinningIcons };
-      
-      for (let i = 0; i < 9; i++) {
-        if (!symbols[i]) {
-          let selectedIcon;
-          let attempts = 0;
-          
-          do {
-            selectedIcon = gameIcons[Math.floor(Math.random() * gameIcons.length)];
-            attempts++;
-          } while (iconCounts[selectedIcon] >= 2 && attempts < 50);
-          
-          symbols[i] = selectedIcon;
-          iconCounts[selectedIcon]++;
-        }
-      }
-    }
-    
-    return symbols;
-  }, [gameResult]);
+    // Fallback - gera novo jogo Fortune Tiger
+    const newGame = generateFortuneTigerGame(betAmount);
+    setFortuneTigerActive(newGame.fortuneTigerActive);
+    setWinningLines(newGame.winningLines || []);
+    return newGame.symbols.map(symbol => symbol.icon);
+  }, [gameResult, betAmount]);
 
   const [symbols, setSymbols] = useState(() => generateSymbols());
 
-  // Calcula valor máximo possível para a aposta atual - 5000x
+  // Calcula valor máximo possível - Fortune Tiger style
   const getMaxPossibleWin = useCallback(() => {
-    const maxMultiplier = 5000; // Multiplicador máximo corrigido para 5000x
+    const maxMultiplier = 2500; // Multiplicador máximo do Fortune Tiger
     return betAmount * maxMultiplier;
   }, [betAmount]);
 
-  // DUAS MENSAGENS ALTERNADAS
+  // Mensagens do Fortune Tiger
   const getMessages = useCallback(() => {
     if (gameCompleted && gameResult) {
       if (gameResult.isWinner) {
-        return [`Ganho: ${formatCurrency(gameResult.prizeAmount)} 🤑`];
+        const messages = [`Ganho: ${formatCurrency(gameResult.prizeAmount)} 🐅`];
+        if (fortuneTigerActive) {
+          messages.push('🎉 FORTUNE TIGER ATIVADO! 🎉');
+        }
+        return messages;
       } else {
         return ['Não foi dessa vez 😔 Tente Novamente!'];
       }
     } else {
       return [
         `Ganhe até ${formatCurrency(getMaxPossibleWin())}`,
-        'Multiplicadores de Até 5000x'
+        '🐅 Fortune Tiger - Multiplicadores até 2500x'
       ];
     }
-  }, [gameCompleted, gameResult, getMaxPossibleWin]);
+  }, [gameCompleted, gameResult, getMaxPossibleWin, fortuneTigerActive]);
 
   // Atualiza mensagem baseada no estado do jogo
   const updateMessage = useCallback(() => {
@@ -157,9 +100,8 @@ const GameCard = ({
       } else {
         setMessageType('loss');
       }
-      setCurrentMessage(0); // Só uma mensagem quando completo
+      setCurrentMessage(0);
       
-      // Para a alternância quando o jogo termina
       if (messageIntervalRef.current) {
         clearInterval(messageIntervalRef.current);
         messageIntervalRef.current = null;
@@ -167,11 +109,10 @@ const GameCard = ({
     } else {
       setMessageType('default');
       
-      // Inicia alternância entre as duas mensagens
       if (!messageIntervalRef.current && messages.length > 1) {
         messageIntervalRef.current = setInterval(() => {
           setCurrentMessage(prev => prev === 0 ? 1 : 0);
-        }, 4000); // Alterna a cada 4 segundos
+        }, 4000);
       }
     }
   }, [gameCompleted, gameResult, getMessages]);
@@ -185,6 +126,8 @@ const GameCard = ({
       setBalanceUpdated(false);
       setRevealedArea(0);
       setShowConfetti(false);
+      setFortuneTigerActive(gameResult.fortuneTigerActive || false);
+      setWinningLines(gameResult.winningLines || []);
       updateMessage();
     }
   }, [gameResult, generateSymbols, updateMessage]);
@@ -216,9 +159,10 @@ const GameCard = ({
       setShowConfetti(false);
       setMessageType('default');
       setCurrentMessage(0);
+      setFortuneTigerActive(false);
+      setWinningLines([]);
       updateMessage();
       
-      // Limpa o canvas único
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -227,7 +171,7 @@ const GameCard = ({
     }
   }, [isPlaying, updateMessage]);
 
-  // Inicializa o canvas com a camada de cobertura
+  // Inicializa o canvas com tema Fortune Tiger
   const initializeCanvas = useCallback(() => {
     if (!canvasRef.current || !gameAreaRef.current) return;
     
@@ -235,7 +179,6 @@ const GameCard = ({
     const gameArea = gameAreaRef.current;
     const ctx = canvas.getContext('2d');
     
-    // Canvas cobre TODA a área interna do game-area
     const gameAreaStyle = window.getComputedStyle(gameArea);
     const paddingTop = parseInt(gameAreaStyle.paddingTop) || 0;
     const paddingLeft = parseInt(gameAreaStyle.paddingLeft) || 0;
@@ -253,27 +196,28 @@ const GameCard = ({
     canvas.style.top = `${paddingTop}px`;
     canvas.style.left = `${paddingLeft}px`;
     
-    // Desenha a camada de cobertura única com gradiente
+    // Gradiente dourado do Fortune Tiger
     const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#4a5568');
-    gradient.addColorStop(0.5, '#5a6578');
-    gradient.addColorStop(1, '#4a5568');
+    gradient.addColorStop(0, '#8B4513');
+    gradient.addColorStop(0.3, '#CD853F');
+    gradient.addColorStop(0.7, '#DAA520');
+    gradient.addColorStop(1, '#B8860B');
     
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Adiciona textura de raspadinha
-    ctx.fillStyle = '#6b7280';
-    for (let i = 0; i < 200; i++) {
+    // Textura oriental
+    ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+    for (let i = 0; i < 300; i++) {
       const x = Math.random() * canvas.width;
       const y = Math.random() * canvas.height;
-      const size = Math.random() * 3 + 1;
+      const size = Math.random() * 2 + 1;
       ctx.fillRect(x, y, size, size);
     }
     
-    // Bordas dos quadradinhos
-    ctx.strokeStyle = '#4a5568';
-    ctx.lineWidth = 2;
+    // Grid 3x3 com bordas douradas
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
     const cellWidth = canvas.width / 3;
     const cellHeight = canvas.height / 3;
     
@@ -285,10 +229,22 @@ const GameCard = ({
       }
     }
     
-    // Borda externa
-    ctx.strokeStyle = '#4a5568';
-    ctx.lineWidth = 4;
+    // Borda externa dourada
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 5;
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    
+    // Padrão chinês decorativo
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const radius = Math.random() * 10 + 5;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
   }, []);
 
   // Modo turbo - revela tudo automaticamente
@@ -302,7 +258,6 @@ const GameCard = ({
         
         const ctx = canvas.getContext('2d');
         
-        // Remove toda a cobertura instantaneamente
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
@@ -328,12 +283,12 @@ const GameCard = ({
     }
   }, [gameStarted, scratchProgress, initializeCanvas]);
 
-  // AUTO PLAY AUTOMÁTICO
+  // AUTO PLAY
   useEffect(() => {
     if (autoActive && autoRounds > 0 && !isPlaying && gameCompleted && balanceUpdated) {
       autoIntervalRef.current = setTimeout(() => {
         onPlay(turboActive);
-      }, 2000); // Aumentado para 2 segundos para ver a mensagem
+      }, 2000);
     }
     
     return () => {
@@ -343,7 +298,7 @@ const GameCard = ({
     };
   }, [autoActive, autoRounds, isPlaying, gameCompleted, balanceUpdated, turboActive, onPlay]);
 
-  // Função para "raspar" o canvas único
+  // Função para "raspar" o canvas
   const scratch = useCallback((canvas, x, y) => {
     if (!canvas || !gameStarted || gameCompleted || isRevealing || turboActive) return;
     
@@ -357,21 +312,20 @@ const GameCard = ({
     
     ctx.globalCompositeOperation = 'destination-out';
     
-    // Círculo principal
+    // Efeito de raspagem mais suave
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, 25, 0, 2 * Math.PI);
+    ctx.arc(canvasX, canvasY, 30, 0, 2 * Math.PI);
     ctx.fill();
     
-    // Círculos menores para efeito mais natural
-    for (let i = 0; i < 3; i++) {
-      const offsetX = (Math.random() - 0.5) * 15;
-      const offsetY = (Math.random() - 0.5) * 15;
+    // Efeito adicional
+    for (let i = 0; i < 4; i++) {
+      const offsetX = (Math.random() - 0.5) * 20;
+      const offsetY = (Math.random() - 0.5) * 20;
       ctx.beginPath();
-      ctx.arc(canvasX + offsetX, canvasY + offsetY, 12, 0, 2 * Math.PI);
+      ctx.arc(canvasX + offsetX, canvasY + offsetY, 15, 0, 2 * Math.PI);
       ctx.fill();
     }
     
-    // Throttle para performance
     const now = Date.now();
     if (now - lastScratchTime.current > 50) {
       calculateScratchProgress();
@@ -379,7 +333,7 @@ const GameCard = ({
     }
   }, [gameStarted, gameCompleted, isRevealing, turboActive]);
 
-  // Calcula o progresso da raspagem - 80%
+  // Calcula o progresso da raspagem
   const calculateScratchProgress = useCallback(() => {
     if (!canvasRef.current) return;
     
@@ -402,8 +356,7 @@ const GameCard = ({
     setScratchProgress(progress);
     setRevealedArea(progress);
     
-    // Libera automaticamente aos 80%
-    if (progress >= 80 && !gameCompleted) {
+    if (progress >= 75 && !gameCompleted) {
       completeGame();
     }
   }, [gameCompleted]);
@@ -421,10 +374,10 @@ const GameCard = ({
     let opacity = 1;
     const fadeOut = () => {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = `rgba(74, 85, 104, ${opacity})`;
+      ctx.fillStyle = `rgba(139, 69, 19, ${opacity})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      opacity -= 0.08;
+      opacity -= 0.1;
       if (opacity > 0) {
         requestAnimationFrame(fadeOut);
       } else {
@@ -434,27 +387,23 @@ const GameCard = ({
         setRevealedArea(100);
         
         setTimeout(() => {
-          // CORRIGIDO: Aplica background verde APENAS nos saquinhos vencedores E APENAS quando ganha
-          if (gameResult && gameResult.isWinner) {
+          // Destaca linhas vencedoras
+          if (gameResult && gameResult.isWinner && winningLines.length > 0) {
             const cells = document.querySelectorAll('.symbol-cell');
-            cells.forEach((cell, index) => {
-              if (symbols[index] === winningIcon) {
-                cell.classList.add('winner-cell');
-              }
+            winningLines.forEach(line => {
+              line.positions.forEach(pos => {
+                if (cells[pos]) {
+                  cells[pos].classList.add('winner-cell');
+                }
+              });
             });
             
             setShowConfetti(true);
-            
-            // Para confetes depois de 3 segundos
-            setTimeout(() => {
-              setShowConfetti(false);
-            }, 3000);
+            setTimeout(() => setShowConfetti(false), 4000);
           }
           
-          // Atualiza mensagem
           updateMessage();
           
-          // Atualiza saldo após 1 segundo
           setTimeout(() => {
             updateBalance();
           }, 1000);
@@ -463,7 +412,7 @@ const GameCard = ({
     };
     
     fadeOut();
-  }, [gameCompleted, gameResult, symbols, updateMessage]);
+  }, [gameCompleted, gameResult, symbols, updateMessage, winningLines]);
 
   // Atualiza saldo
   const updateBalance = useCallback(() => {
@@ -472,12 +421,10 @@ const GameCard = ({
     setBalanceUpdated(true);
     
     if (onBalanceUpdate) {
-      // CORRIGIDO: Passa apenas prizeAmount se ganhou (aposta já foi debitada)
       const prizeAmount = gameResult?.isWinner ? gameResult.prizeAmount : 0;
       onBalanceUpdate(prizeAmount);
     }
     
-    // Se modo auto está ativo, diminui contador
     if (autoActive && autoRounds > 1) {
       setAutoRounds(prev => prev - 1);
     } else if (autoActive && autoRounds <= 1) {
@@ -520,326 +467,243 @@ const GameCard = ({
     isMouseDown.current = false;
   }, []);
 
-  // Funções dos botões
-  const handleTurboClick = () => {
-    setTurboActive(!turboActive);
+  // Função para obter o emoji do símbolo
+  const getSymbolEmoji = (symbolIcon) => {
+    return symbolIcon;
   };
 
-  const handleAutoClick = () => {
-    if (autoActive) {
-      setAutoActive(false);
-      setAutoRounds(0);
-      if (autoIntervalRef.current) {
-        clearTimeout(autoIntervalRef.current);
-      }
-    } else {
-      setShowAutoOptions(!showAutoOptions);
+  // Função para obter classe CSS do símbolo
+  const getSymbolClass = (symbolIcon, index) => {
+    let baseClass = "symbol-cell flex items-center justify-center text-4xl md:text-5xl font-bold transition-all duration-300 rounded-lg";
+    
+    // Adiciona classe especial para Wild (Tigre)
+    if (symbolIcon === '🐅') {
+      baseClass += " wild-symbol";
     }
-  };
-
-  const selectAutoRounds = (rounds) => {
-    setAutoRounds(rounds);
-    setAutoActive(true);
-    setShowAutoOptions(false);
-  };
-
-  const handlePlay = () => {
-    onPlay(turboActive);
-  };
-
-  // Componente de Confetes
-  const ConfettiAnimation = () => {
-    if (!showConfetti) return null;
     
-    const confettiPieces = Array.from({ length: 50 }, (_, i) => (
-      <div
-        key={i}
-        className="absolute w-2 h-2 opacity-80"
-        style={{
-          left: `${Math.random() * 100}%`,
-          backgroundColor: ['#48bb78', '#f6e05e', '#ed8936', '#9f7aea', '#38b2ac'][Math.floor(Math.random() * 5)],
-          animation: `confetti-fall ${2 + Math.random() * 3}s linear infinite`,
-          animationDelay: `${Math.random() * 2}s`
-        }}
-      />
-    ));
+    // Adiciona classe para células vencedoras
+    const isWinningCell = winningLines.some(line => line.positions.includes(index));
+    if (isWinningCell && gameCompleted && gameResult?.isWinner) {
+      baseClass += " winner-cell";
+    }
     
-    return (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
-        {confettiPieces}
-        <style jsx>{`
-          @keyframes confetti-fall {
-            0% {
-              transform: translateY(-100vh) rotate(0deg);
-              opacity: 1;
-            }
-            100% {
-              transform: translateY(100vh) rotate(720deg);
-              opacity: 0;
-            }
-          }
-        `}</style>
-      </div>
-    );
+    return baseClass;
   };
 
   return (
-    <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-4 sm:p-6 rounded-lg border-2 border-green-500 shadow-2xl max-w-md mx-auto w-full relative">
+    <div className="w-full max-w-md mx-auto">
       {/* Confetes */}
-      <ConfettiAnimation />
-      
-      {/* Header */}
-      <div className="text-center mb-4">
-        <h2 className="text-2xl font-bold text-green-400 mb-2">RaspaAI</h2>
-        <p className="text-gray-300 text-sm">Raspe e ganhe prêmios incríveis!</p>
-      </div>
-
-      {/* Barra de progresso - APENAS VERDE */}
-      {scratchProgress > 0 && gameStarted && (
-        <div className="mb-4">
-          <div className="bg-gray-700 rounded-full h-3 overflow-hidden border border-green-500/30">
-            <div 
-              className="h-full transition-all duration-300 ease-out bg-green-500"
-              style={{ width: `${scratchProgress}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-xs mt-1">
-            <span className="text-green-400">
-              {Math.round(scratchProgress)}% revelado
-            </span>
-            {scratchProgress >= 80 && scratchProgress < 100 && (
-              <span className="text-yellow-400 animate-pulse">
-                🎯 Liberando automaticamente...
-              </span>
-            )}
-            {scratchProgress === 100 && (
-              <span className="text-green-400">
-                ✅ Completo!
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Grid da raspadinha */}
-      <div 
-        ref={gameAreaRef}
-        className="bg-gradient-to-br from-gray-600 to-gray-700 p-4 rounded-lg border-2 border-green-400 mb-4 relative"
-      >
-        {/* Grid de símbolos */}
-        <div className="grid grid-cols-3 gap-2 relative">
-          {symbols.map((symbol, index) => (
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-50">
+          {[...Array(50)].map((_, i) => (
             <div
-              key={index}
-              className={`symbol-cell relative aspect-square rounded-lg overflow-hidden border border-gray-600 bg-gradient-to-br from-gray-700 to-gray-800`}
+              key={i}
+              className="absolute animate-bounce"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${2 + Math.random() * 2}s`
+              }}
             >
-              <div className="absolute inset-0 flex items-center justify-center">
-                {gameStarted ? (
-                  // NOVO: Verifica se é uma URL de imagem ou emoji
-                  symbol.startsWith('/icons/') ? (
-                    <img 
-                      src={symbol} 
-                      alt="Símbolo" 
-                      className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
-                      onError={(e) => {
-                        // Fallback para emoji se imagem não carregar
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'block';
-                      }}
-                    />
-                  ) : (
-                    <span className="text-white text-3xl sm:text-4xl font-bold">
-                      {symbol}
-                    </span>
-                  )
-                ) : (
-                  <span className="text-gray-500 text-lg">?</span>
-                )}
-              </div>
+              🎉
             </div>
           ))}
         </div>
+      )}
 
-        {/* Canvas único sobreposto */}
-        {gameStarted && !gameCompleted && !turboActive && (
-          <canvas
-            ref={canvasRef}
-            className="absolute cursor-crosshair touch-none rounded-lg"
-            onMouseDown={handleStart}
-            onMouseMove={handleMove}
-            onMouseUp={handleEnd}
-            onMouseLeave={handleEnd}
-            onTouchStart={handleStart}
-            onTouchMove={handleMove}
-            onTouchEnd={handleEnd}
-            style={{ 
-              pointerEvents: isPlaying ? 'none' : 'auto',
-              zIndex: 10
-            }}
-          />
-        )}
-
-        {/* Indicador de área liberada */}
-        {gameStarted && scratchProgress >= 80 && scratchProgress < 100 && (
-          <div className="absolute top-2 right-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold animate-bounce z-20">
-            80%+ Liberado!
+      {/* Card principal com tema Fortune Tiger */}
+      <div className="bg-gradient-to-br from-red-900 via-red-800 to-yellow-800 rounded-2xl shadow-2xl border-4 border-yellow-400 overflow-hidden">
+        {/* Header com logo Fortune Tiger */}
+        <div className="bg-gradient-to-r from-yellow-600 to-yellow-500 p-4 text-center border-b-4 border-yellow-400">
+          <h2 className="text-2xl font-bold text-red-900 mb-2 flex items-center justify-center gap-2">
+            🐅 FORTUNE TIGER 🐅
+          </h2>
+          <div className={`text-lg font-semibold transition-all duration-500 ${
+            messageType === 'win' ? 'text-green-800 animate-pulse' : 
+            messageType === 'loss' ? 'text-red-800' : 'text-red-900'
+          }`}>
+            {getMessages()[currentMessage]}
           </div>
-        )}
-      </div>
-
-      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER - DUAS MENSAGENS ALTERNADAS */}
-      <div className="mb-4 h-8 overflow-hidden rounded-lg border border-green-500/30 relative">
-        <div 
-          className={`absolute inset-0 flex items-center justify-center text-sm font-bold whitespace-nowrap animate-marquee ${
-            messageType === 'win' ? 'bg-gradient-to-r from-green-600 to-green-500 text-white' :
-            messageType === 'loss' ? 'bg-gradient-to-r from-red-600 to-red-500 text-white' :
-            'bg-gradient-to-r from-gray-700 to-gray-600 text-green-400'
-          }`}
-        >
-          {getMessages()[currentMessage]}
+          {fortuneTigerActive && gameCompleted && (
+            <div className="text-sm text-red-800 font-bold animate-pulse mt-1">
+              ⚡ FORTUNE TIGER FEATURE ATIVADO! ⚡
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Informações do jogo - LAYOUT ESTILO FORTUNE TIGER */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-gradient-to-br from-yellow-600 to-yellow-700 p-3 rounded border-2 border-yellow-400 text-center">
-          <div className="text-yellow-100 text-xs font-medium mb-1">💰 SALDO</div>
-          <div className="text-white text-sm font-bold">{formatCurrency(balance)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-3 rounded border-2 border-blue-400 text-center">
-          <div className="text-blue-100 text-xs font-medium mb-1">🎯 APOSTA</div>
-          <div className="text-white text-sm font-bold">{formatCurrency(betAmount)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-600 to-green-700 p-3 rounded border-2 border-green-400 text-center">
-          <div className="text-green-100 text-xs font-medium mb-1">🏆 GANHO</div>
-          <div className="text-white text-sm font-bold">
-            {formatCurrency(gameCompleted && balanceUpdated && gameResult?.prizeAmount ? gameResult.prizeAmount : 0)}
-          </div>
-        </div>
-      </div>
+        {/* Área do jogo */}
+        <div className="p-6">
+          <div 
+            ref={gameAreaRef}
+            className="relative bg-gradient-to-br from-yellow-200 to-yellow-100 rounded-xl border-4 border-yellow-600 p-4 mb-6 aspect-square"
+          >
+            {/* Canvas de raspagem */}
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 cursor-pointer z-10 rounded-lg"
+              onMouseDown={handleStart}
+              onMouseMove={handleMove}
+              onMouseUp={handleEnd}
+              onMouseLeave={handleEnd}
+              onTouchStart={handleStart}
+              onTouchMove={handleMove}
+              onTouchEnd={handleEnd}
+              style={{ touchAction: 'none' }}
+            />
 
-      {/* Botão principal de jogar - ESTILO FORTUNE TIGER */}
-      <button 
-        onClick={handlePlay}
-        disabled={isPlaying || balance < betAmount}
-        className="w-full h-14 bg-gradient-to-b from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 disabled:opacity-50 text-white font-bold text-xl border-3 border-green-300 shadow-xl transform transition-all duration-150 active:scale-95 rounded-lg mb-4 relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 animate-pulse"></div>
-        {isPlaying ? (
-          <div className="flex items-center justify-center gap-2 relative z-10">
-            <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
-            Aguarde...
-          </div>
-        ) : (
-          <span className="relative z-10">▶ JOGAR {formatCurrency(betAmount)}</span>
-        )}
-      </button>
-
-      {/* Controles em linha - LAYOUT FORTUNE TIGER */}
-      <div className="flex gap-2 relative">
-        {/* Botão Turbo */}
-        <button 
-          onClick={handleTurboClick}
-          disabled={isPlaying}
-          className={`flex-1 h-12 ${
-            turboActive 
-              ? 'bg-gradient-to-b from-orange-500 to-orange-600 border-orange-300' 
-              : 'bg-gradient-to-b from-gray-600 to-gray-700 border-gray-500'
-          } hover:opacity-80 disabled:opacity-50 text-white font-bold border-2 shadow-lg transform transition-all duration-150 active:scale-95 rounded relative`}
-        >
-          <div className="flex flex-col items-center">
-            <span className="text-lg">⚡</span>
-            <span className="text-xs">TURBO</span>
-            {turboActive && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
-            )}
-          </div>
-        </button>
-
-        {/* Botões de aposta */}
-        <button 
-          onClick={() => {
-            const currentIndex = BET_VALUES.indexOf(betAmount);
-            const newIndex = Math.max(0, currentIndex - 1);
-            setBetAmount(BET_VALUES[newIndex]);
-          }}
-          disabled={isPlaying || autoActive || BET_VALUES.indexOf(betAmount) === 0}
-          className="w-12 h-12 bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-red-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
-        >
-          -
-        </button>
-
-        <button 
-          onClick={() => {
-            const currentIndex = BET_VALUES.indexOf(betAmount);
-            const newIndex = Math.min(BET_VALUES.length - 1, currentIndex + 1);
-            setBetAmount(BET_VALUES[newIndex]);
-          }}
-          disabled={isPlaying || autoActive || BET_VALUES.indexOf(betAmount) === BET_VALUES.length - 1}
-          className="w-12 h-12 bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-blue-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
-        >
-          +
-        </button>
-
-        {/* Botão Auto */}
-        <button 
-          onClick={handleAutoClick}
-          disabled={isPlaying}
-          className={`flex-1 h-12 ${
-            autoActive 
-              ? 'bg-gradient-to-b from-purple-500 to-purple-600 border-purple-300' 
-              : 'bg-gradient-to-b from-gray-600 to-gray-700 border-gray-500'
-          } hover:opacity-80 disabled:opacity-50 text-white font-bold border-2 shadow-lg transform transition-all duration-150 active:scale-95 rounded relative`}
-        >
-          <div className="flex flex-col items-center">
-            <span className="text-lg">{autoActive ? '⏹' : '▶'}</span>
-            <span className="text-xs">
-              {autoActive ? autoRounds : 'AUTO'}
-            </span>
-            {autoActive && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
-            )}
-          </div>
-        </button>
-
-        {/* Opções do Auto */}
-        {showAutoOptions && (
-          <div className="absolute bottom-14 right-0 bg-gray-800 border-2 border-green-400 rounded-lg p-2 z-30 shadow-xl">
-            <div className="text-green-400 text-xs font-bold mb-2 text-center">Rodadas Auto</div>
-            <div className="grid grid-cols-1 gap-1">
-              {[10, 20, 30, 50, 100].map(rounds => (
-                <button
-                  key={rounds}
-                  onClick={() => selectAutoRounds(rounds)}
-                  className="px-3 py-1 bg-gray-700 hover:bg-green-600 text-white text-xs rounded transition-colors"
+            {/* Grid 3x3 dos símbolos */}
+            <div className="grid grid-cols-3 gap-2 h-full relative z-0">
+              {symbols.map((symbol, index) => (
+                <div
+                  key={index}
+                  className={getSymbolClass(symbol, index)}
+                  style={{
+                    background: symbol === '🐅' ? 
+                      'linear-gradient(45deg, #FFD700, #FFA500)' : 
+                      'linear-gradient(45deg, #FFF8DC, #F0E68C)',
+                    border: symbol === '🐅' ? '3px solid #FF4500' : '2px solid #DAA520',
+                    boxShadow: symbol === '🐅' ? '0 0 20px rgba(255, 69, 0, 0.5)' : 'none'
+                  }}
                 >
-                  {rounds}x
-                </button>
+                  {getSymbolEmoji(symbol)}
+                </div>
               ))}
             </div>
+
+            {/* Indicador de progresso */}
+            {gameStarted && !gameCompleted && (
+              <div className="absolute bottom-2 left-2 right-2 bg-black bg-opacity-50 rounded-full p-1 z-20">
+                <div 
+                  className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${scratchProgress}%` }}
+                />
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Controles de aposta */}
+          <div className="flex items-center justify-between mb-4 bg-yellow-100 rounded-lg p-3 border-2 border-yellow-400">
+            <button
+              onClick={() => setBetAmount(Math.max(BET_VALUES[0], betAmount - 0.5))}
+              disabled={isPlaying || betAmount <= BET_VALUES[0]}
+              className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+            >
+              -
+            </button>
+            
+            <div className="text-center">
+              <div className="text-sm text-red-800 font-semibold">Aposta</div>
+              <div className="text-xl font-bold text-red-900">{formatCurrency(betAmount)}</div>
+            </div>
+            
+            <button
+              onClick={() => setBetAmount(Math.min(BET_VALUES[BET_VALUES.length - 1], betAmount + 0.5))}
+              disabled={isPlaying || betAmount >= BET_VALUES[BET_VALUES.length - 1]}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Botões de ação */}
+          <div className="space-y-3">
+            <button
+              onClick={() => onPlay(false)}
+              disabled={isPlaying || balance < betAmount}
+              className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 px-6 rounded-xl text-lg transition-all duration-300 transform hover:scale-105 disabled:scale-100 shadow-lg"
+            >
+              {isPlaying ? '🎰 JOGANDO...' : '🎰 JOGAR FORTUNE TIGER'}
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setTurboActive(!turboActive);
+                  if (!turboActive) onPlay(true);
+                }}
+                disabled={isPlaying}
+                className={`flex-1 font-bold py-3 px-4 rounded-lg transition-all ${
+                  turboActive 
+                    ? 'bg-yellow-500 hover:bg-yellow-600 text-red-900' 
+                    : 'bg-gray-600 hover:bg-gray-700 text-white'
+                }`}
+              >
+                ⚡ TURBO
+              </button>
+
+              <button
+                onClick={() => setShowAutoOptions(!showAutoOptions)}
+                disabled={isPlaying}
+                className={`flex-1 font-bold py-3 px-4 rounded-lg transition-all ${
+                  autoActive 
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                    : 'bg-gray-600 hover:bg-gray-700 text-white'
+                }`}
+              >
+                🔄 AUTO {autoActive ? `(${autoRounds})` : ''}
+              </button>
+            </div>
+
+            {/* Opções de auto play */}
+            {showAutoOptions && (
+              <div className="bg-yellow-100 rounded-lg p-3 border-2 border-yellow-400">
+                <div className="text-sm text-red-800 font-semibold mb-2">Rodadas Automáticas:</div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[10, 25, 50, 100].map(rounds => (
+                    <button
+                      key={rounds}
+                      onClick={() => {
+                        setAutoRounds(rounds);
+                        setAutoActive(true);
+                        setShowAutoOptions(false);
+                        onPlay(turboActive);
+                      }}
+                      disabled={isPlaying}
+                      className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-bold py-2 px-3 rounded text-sm transition-colors"
+                    >
+                      {rounds}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Informações do jogo */}
+          <div className="mt-4 text-center text-sm text-yellow-100">
+            <div>RTP: 96.81% | Volatilidade: Média</div>
+            <div>Ganhe com 3 símbolos iguais em linha</div>
+            {gameResult?.fortuneTigerActive && (
+              <div className="text-yellow-300 font-bold animate-pulse">
+                🐅 Fortune Tiger Feature Ativo! 🐅
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* CSS para background verde dos vencedores APENAS quando ganha e animação da mensagem */}
+      {/* Estilos CSS para animações */}
       <style jsx>{`
         .winner-cell {
-          background: linear-gradient(135deg, #48bb78, #38a169) !important;
-          animation: winner-pulse 2s infinite;
+          animation: winnerPulse 1s ease-in-out infinite alternate;
+          background: linear-gradient(45deg, #32CD32, #90EE90) !important;
+          border: 3px solid #228B22 !important;
+          box-shadow: 0 0 25px rgba(50, 205, 50, 0.8) !important;
         }
         
-        @keyframes winner-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
+        .wild-symbol {
+          animation: wildGlow 2s ease-in-out infinite alternate;
         }
         
-        @keyframes marquee {
-          0% { transform: translateX(100%); }
-          100% { transform: translateX(-100%); }
+        @keyframes winnerPulse {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.1); }
         }
         
-        .animate-marquee {
-          animation: marquee 8s linear infinite;
+        @keyframes wildGlow {
+          0% { box-shadow: 0 0 20px rgba(255, 69, 0, 0.5); }
+          100% { box-shadow: 0 0 30px rgba(255, 69, 0, 0.9); }
         }
       `}</style>
     </div>

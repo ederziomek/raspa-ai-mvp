@@ -81,7 +81,7 @@ router.get('/history', requireTenant, async (req, res) => {
 
 /**
  * POST /api/game/play
- * Jogar uma partida de raspadinha
+ * Jogar uma partida de Fortune Tiger
  */
 router.post('/play', requireTenant, async (req, res) => {
   try {
@@ -105,66 +105,15 @@ router.post('/play', requireTenant, async (req, res) => {
       });
     }
     
-    // Sistema de multiplicadores baseado no MVP (RTP 95%)
-    const multipliers = [
-      { value: 0, weight: 40 },     // 40% chance de perder
-      { value: 1, weight: 25 },     // 25% chance de 1x
-      { value: 2, weight: 15 },     // 15% chance de 2x
-      { value: 3, weight: 8 },      // 8% chance de 3x
-      { value: 5, weight: 5 },      // 5% chance de 5x
-      { value: 12, weight: 3 },     // 3% chance de 12x
-      { value: 25, weight: 2 },     // 2% chance de 25x
-      { value: 70, weight: 1 },     // 1% chance de 70x
-      { value: 140, weight: 0.7 },  // 0.7% chance de 140x
-      { value: 320, weight: 0.2 },  // 0.2% chance de 320x
-      { value: 650, weight: 0.08 }, // 0.08% chance de 650x
-      { value: 1360, weight: 0.02 } // 0.02% chance de 1360x
-    ];
+    // Importar lógica do Fortune Tiger
+    const { generateFortuneTigerGame } = require('../utils/fortuneTiger');
     
-    // Seleção ponderada do multiplicador
-    const totalWeight = multipliers.reduce((sum, m) => sum + m.weight, 0);
-    let random = Math.random() * totalWeight;
+    // Gerar jogo Fortune Tiger
+    const gameResult = generateFortuneTigerGame(betValue);
     
-    let selectedMultiplier = 0;
-    for (const multiplier of multipliers) {
-      random -= multiplier.weight;
-      if (random <= 0) {
-        selectedMultiplier = multiplier.value;
-        break;
-      }
-    }
-    
-    const prizeAmount = betValue * selectedMultiplier;
+    const selectedMultiplier = gameResult.multiplier || 0;
+    const prizeAmount = gameResult.prizeAmount || 0;
     const netResult = prizeAmount - betValue; // Ganho líquido (pode ser negativo)
-    
-    // Gerar símbolos para a raspadinha (9 símbolos)
-    const symbols = ['🍒', '🍋', '⭐', '💎', '🔔', '🍀', '🎯', '💰'];
-    const gameSymbols = [];
-    let winningSymbol = null;
-    
-    // Se ganhou, garantir que há símbolos iguais
-    if (selectedMultiplier > 0) {
-      winningSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-      // Adicionar 3 símbolos iguais (vencedores)
-      for (let i = 0; i < 3; i++) {
-        gameSymbols.push(winningSymbol);
-      }
-      // Completar com símbolos aleatórios
-      for (let i = 3; i < 9; i++) {
-        gameSymbols.push(symbols[Math.floor(Math.random() * symbols.length)]);
-      }
-    } else {
-      // Se perdeu, garantir que não há 3 símbolos iguais
-      for (let i = 0; i < 9; i++) {
-        gameSymbols.push(symbols[Math.floor(Math.random() * symbols.length)]);
-      }
-    }
-    
-    // Embaralhar símbolos
-    for (let i = gameSymbols.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [gameSymbols[i], gameSymbols[j]] = [gameSymbols[j], gameSymbols[i]];
-    }
     
     // Atualizar saldo do usuário
     const newBalance = req.user.balance - betValue + prizeAmount;
@@ -180,8 +129,8 @@ router.post('/play', requireTenant, async (req, res) => {
       bet_amount: betValue,
       multiplier: selectedMultiplier,
       prize_amount: prizeAmount,
-      symbols: gameSymbols,
-      winning_symbol: winningSymbol,
+      symbols: gameResult.gameSymbols,
+      winning_symbol: gameResult.winningSymbol,
       played_at: new Date(),
       ip_address: req.ip,
       user_agent: req.get('User-Agent')
@@ -193,7 +142,7 @@ router.post('/play', requireTenant, async (req, res) => {
       tenant_id: req.tenant.id,
       type: 'game_bet',
       amount: -betValue,
-      description: `Aposta - Jogo #${game.id}`,
+      description: `Aposta Fortune Tiger - Jogo #${game.id}`,
       reference_id: game.id,
       reference_type: 'game'
     });
@@ -205,7 +154,7 @@ router.post('/play', requireTenant, async (req, res) => {
         tenant_id: req.tenant.id,
         type: 'game_win',
         amount: prizeAmount,
-        description: `Prêmio ${selectedMultiplier}x - Jogo #${game.id}`,
+        description: `Prêmio ${selectedMultiplier}x Fortune Tiger - Jogo #${game.id}`,
         reference_id: game.id,
         reference_type: 'game'
       });
@@ -217,13 +166,20 @@ router.post('/play', requireTenant, async (req, res) => {
       prizeAmount: prizeAmount,
       netResult: netResult,
       newBalance: newBalance,
-      symbols: gameSymbols,
-      winningSymbol: winningSymbol,
-      message: selectedMultiplier > 0 ? 'Parabéns! Você ganhou!' : 'Que pena! Tente novamente.'
+      symbols: gameResult.symbols,
+      gameSymbols: gameResult.gameSymbols,
+      winningSymbol: gameResult.winningSymbol,
+      winningLines: gameResult.winningLines,
+      fortuneTigerActive: gameResult.fortuneTigerActive,
+      isWinner: gameResult.isWinner,
+      rtp: gameResult.rtp,
+      message: gameResult.isWinner ? 
+        (gameResult.fortuneTigerActive ? '🐅 FORTUNE TIGER! Você ganhou!' : 'Parabéns! Você ganhou!') : 
+        'Não foi dessa vez! Tente novamente.'
     });
     
   } catch (error) {
-    console.error('Erro ao jogar:', error);
+    console.error('Erro ao jogar Fortune Tiger:', error);
     res.status(500).json({
       error: 'Erro interno do servidor',
       message: 'Erro ao processar jogada'
