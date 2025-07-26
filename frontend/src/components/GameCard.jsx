@@ -22,12 +22,13 @@ const GameCard = ({
   const [showAutoOptions, setShowAutoOptions] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [messageType, setMessageType] = useState('default'); // 'default', 'win', 'loss'
-  const [messageText, setMessageText] = useState('');
+  const [currentMessage, setCurrentMessage] = useState(0); // 0 ou 1 para alternar mensagens
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
   const lastScratchTime = useRef(0);
   const autoIntervalRef = useRef(null);
+  const messageIntervalRef = useRef(null);
 
   // Apenas 4 ícones conforme solicitado
   const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
@@ -121,21 +122,50 @@ const GameCard = ({
     return betAmount * maxMultiplier;
   }, [betAmount]);
 
+  // DUAS MENSAGENS ALTERNADAS
+  const getMessages = useCallback(() => {
+    if (gameCompleted && gameResult) {
+      if (gameResult.isWinner) {
+        return [`Você Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`];
+      } else {
+        return ['Não foi dessa vez 😔 - Tente novamente'];
+      }
+    } else {
+      return [
+        `Ganhe até ${formatCurrency(getMaxPossibleWin())}`,
+        'Multiplicadores de Até 5000x'
+      ];
+    }
+  }, [gameCompleted, gameResult, getMaxPossibleWin]);
+
   // Atualiza mensagem baseada no estado do jogo
   const updateMessage = useCallback(() => {
+    const messages = getMessages();
+    
     if (gameCompleted && gameResult) {
       if (gameResult.isWinner) {
         setMessageType('win');
-        setMessageText(`Você Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`);
       } else {
         setMessageType('loss');
-        setMessageText('Não foi dessa vez 😔 - Tente novamente');
+      }
+      setCurrentMessage(0); // Só uma mensagem quando completo
+      
+      // Para a alternância quando o jogo termina
+      if (messageIntervalRef.current) {
+        clearInterval(messageIntervalRef.current);
+        messageIntervalRef.current = null;
       }
     } else {
       setMessageType('default');
-      setMessageText(`Ganhe até ${formatCurrency(getMaxPossibleWin())}`);
+      
+      // Inicia alternância entre as duas mensagens
+      if (!messageIntervalRef.current && messages.length > 1) {
+        messageIntervalRef.current = setInterval(() => {
+          setCurrentMessage(prev => prev === 0 ? 1 : 0);
+        }, 4000); // Alterna a cada 4 segundos
+      }
     }
-  }, [gameCompleted, gameResult, getMaxPossibleWin]);
+  }, [gameCompleted, gameResult, getMessages]);
 
   // Atualiza símbolos quando o resultado do jogo muda
   useEffect(() => {
@@ -155,6 +185,15 @@ const GameCard = ({
     updateMessage();
   }, [betAmount, updateMessage]);
 
+  // Cleanup do interval quando componente desmonta
+  useEffect(() => {
+    return () => {
+      if (messageIntervalRef.current) {
+        clearInterval(messageIntervalRef.current);
+      }
+    };
+  }, []);
+
   // Reset quando inicia novo jogo
   useEffect(() => {
     if (isPlaying) {
@@ -167,7 +206,8 @@ const GameCard = ({
       setRevealedArea(0);
       setShowConfetti(false);
       setMessageType('default');
-      setMessageText(`Ganhe até ${formatCurrency(getMaxPossibleWin())}`);
+      setCurrentMessage(0);
+      updateMessage();
       
       // Limpa o canvas único
       if (canvasRef.current) {
@@ -176,7 +216,7 @@ const GameCard = ({
         initializeCanvas();
       }
     }
-  }, [isPlaying, getMaxPossibleWin]);
+  }, [isPlaying, updateMessage]);
 
   // Inicializa o canvas com a camada de cobertura
   const initializeCanvas = useCallback(() => {
@@ -623,7 +663,7 @@ const GameCard = ({
         )}
       </div>
 
-      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER - CORRIGIDA */}
+      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER - DUAS MENSAGENS ALTERNADAS */}
       <div className="mb-4 h-8 overflow-hidden rounded-lg border border-green-500/30 relative">
         <div 
           className={`absolute inset-0 flex items-center justify-center text-sm font-bold whitespace-nowrap animate-marquee ${
@@ -632,7 +672,7 @@ const GameCard = ({
             'bg-gradient-to-r from-gray-700 to-gray-600 text-green-400'
           }`}
         >
-          {messageText}
+          {getMessages()[currentMessage]}
         </div>
       </div>
 
