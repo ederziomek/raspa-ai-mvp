@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { BET_VALUES, formatCurrency } from '../config/gameConfig';
 
 const GameCard = ({ 
   balance,
@@ -42,12 +43,20 @@ const GameCard = ({
     }).format(value);
   };
 
-  // LÓGICA CORRIGIDA - NUNCA 3 ÍCONES IGUAIS (EXCETO SAQUINHOS PARA VITÓRIA)
+  // NOVO: Usa símbolos gerados pela configuração
   const generateSymbols = useCallback(() => {
     if (!gameResult) {
       return Array(9).fill('?');
     }
 
+    if (gameResult.symbols && gameResult.symbols.length === 9) {
+      // Usa símbolos gerados pela configuração (ícones de notas/moedas)
+      return gameResult.symbols.map(symbol => symbol.icon);
+    }
+    
+    // Fallback para símbolos padrão se não houver símbolos na configuração
+    const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
+    const winningIcon = '💰';
     const symbols = [];
     
     if (gameResult.isWinner) {
@@ -624,11 +633,25 @@ const GameCard = ({
               key={index}
               className={`symbol-cell relative aspect-square rounded-lg overflow-hidden border border-gray-600 bg-gradient-to-br from-gray-700 to-gray-800`}
             >
-              <div className="absolute inset-0 flex items-center justify-center text-3xl sm:text-4xl font-bold">
+              <div className="absolute inset-0 flex items-center justify-center">
                 {gameStarted ? (
-                  <span className="text-white">
-                    {symbol}
-                  </span>
+                  // NOVO: Verifica se é uma URL de imagem ou emoji
+                  symbol.startsWith('/icons/') ? (
+                    <img 
+                      src={symbol} 
+                      alt="Símbolo" 
+                      className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
+                      onError={(e) => {
+                        // Fallback para emoji se imagem não carregar
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                  ) : (
+                    <span className="text-white text-3xl sm:text-4xl font-bold">
+                      {symbol}
+                    </span>
+                  )
                 ) : (
                   <span className="text-gray-500 text-lg">?</span>
                 )}
@@ -735,16 +758,24 @@ const GameCard = ({
 
         {/* Botões de aposta */}
         <button 
-          onClick={() => setBetAmount(prev => Math.max(0.5, prev - 0.5))}
-          disabled={isPlaying || autoActive}
+          onClick={() => {
+            const currentIndex = BET_VALUES.indexOf(betAmount);
+            const newIndex = Math.max(0, currentIndex - 1);
+            setBetAmount(BET_VALUES[newIndex]);
+          }}
+          disabled={isPlaying || autoActive || BET_VALUES.indexOf(betAmount) === 0}
           className="w-12 h-12 bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-red-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
         >
           -
         </button>
 
         <button 
-          onClick={() => setBetAmount(prev => Math.min(1000, prev + 0.5))}
-          disabled={isPlaying || autoActive}
+          onClick={() => {
+            const currentIndex = BET_VALUES.indexOf(betAmount);
+            const newIndex = Math.min(BET_VALUES.length - 1, currentIndex + 1);
+            setBetAmount(BET_VALUES[newIndex]);
+          }}
+          disabled={isPlaying || autoActive || BET_VALUES.indexOf(betAmount) === BET_VALUES.length - 1}
           className="w-12 h-12 bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-blue-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
         >
           +

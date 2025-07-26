@@ -1,55 +1,22 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import GameCard from './components/GameCard';
+import { 
+  BET_VALUES, 
+  selectMultiplier, 
+  formatCurrency, 
+  generateScratchSymbols,
+  generatePrizeTable,
+  GAME_CONFIG 
+} from './config/gameConfig';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
-  const [balance, setBalance] = useState(100.00);
-  const [betAmount, setBetAmount] = useState(0.5);
+  const [balance, setBalance] = useState(GAME_CONFIG.DEFAULT_BALANCE);
+  const [betAmount, setBetAmount] = useState(GAME_CONFIG.DEFAULT_BET);
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [turboMode, setTurboMode] = useState(false);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-    }).format(value);
-  };
-
-  // Tabela de multiplicadores com probabilidades exatas (RTP 95%)
-  const multiplierTable = [
-    { multiplier: 0, probability: 0.40 },      // 40% - Perda
-    { multiplier: 0.7, probability: 0.25 },    // 25% - Retorno parcial
-    { multiplier: 1.4, probability: 0.20 },    // 20% - Lucro pequeno
-    { multiplier: 2, probability: 0.08 },      // 8%
-    { multiplier: 3, probability: 0.04 },      // 4%
-    { multiplier: 4, probability: 0.018 },     // 1.8%
-    { multiplier: 5, probability: 0.008 },     // 0.8%
-    { multiplier: 12, probability: 0.0025 },   // 0.25%
-    { multiplier: 25, probability: 0.001 },    // 0.1%
-    { multiplier: 70, probability: 0.0004 },   // 0.04%
-    { multiplier: 140, probability: 0.000080 }, // 0.008%
-    { multiplier: 320, probability: 0.000015 }, // 0.0015%
-    { multiplier: 650, probability: 0.000004 }, // 0.0004%
-    { multiplier: 1360, probability: 0.00000099 }, // 0.000099%
-    { multiplier: 5000, probability: 0.00000001 }  // 0.000001%
-  ];
-
-  // Seleciona multiplicador baseado nas probabilidades
-  const selectMultiplier = () => {
-    const random = Math.random();
-    let cumulativeProbability = 0;
-    
-    for (const { multiplier, probability } of multiplierTable) {
-      cumulativeProbability += probability;
-      if (random <= cumulativeProbability) {
-        return multiplier;
-      }
-    }
-    return 0; // fallback
-  };
 
   // CORRIGIDO: Debita saldo imediatamente, credita prêmio após revelação
   const playGame = async (isTurbo = false) => {
@@ -71,6 +38,9 @@ function App() {
     const isWinner = multiplier > 0;
     const prizeAmount = betAmount * multiplier;
 
+    // Gera símbolos da raspadinha baseado no resultado
+    const symbols = generateScratchSymbols(betAmount, isWinner ? multiplier : null);
+
     // REMOVIDO: Não credita prêmio aqui mais - será creditado após revelação
     // if (isWinner) {
     //   setBalance(prev => prev + prizeAmount);
@@ -80,7 +50,8 @@ function App() {
       isWinner,
       prizeAmount,
       multiplier,
-      winningSymbol: isWinner ? '💰' : null,
+      symbols, // NOVO: Inclui símbolos gerados
+      winningSymbol: isWinner ? symbols.find(s => s.isWinning)?.icon : null,
       betAmount
     };
 
@@ -100,6 +71,11 @@ function App() {
   const handleRevealComplete = () => {
     setTurboMode(false);
   };
+
+  // Gera tabela de prêmios baseada na aposta atual
+  const prizeTable = useMemo(() => {
+    return generatePrizeTable(betAmount);
+  }, [betAmount]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
@@ -230,11 +206,21 @@ function App() {
           </p>
           
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-            {multiplierTable.filter(m => m.multiplier > 0).map((item, index) => (
+            {prizeTable.slice(0, 14).map((prize, index) => (
               <div key={index} className="bg-gray-700/50 p-3 rounded-lg border border-green-500/30 text-center">
-                <div className="text-green-400 font-bold text-lg">{item.multiplier}x</div>
-                <div className="text-white text-sm">{formatCurrency(betAmount * item.multiplier)}</div>
-                <div className="text-gray-400 text-xs">{(item.probability * 100).toFixed(6)}%</div>
+                <div className="flex justify-center mb-2">
+                  <img 
+                    src={prize.icon} 
+                    alt={prize.iconName}
+                    className="w-8 h-8 object-contain"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div className="text-green-400 font-bold text-lg">{prize.multiplier}x</div>
+                <div className="text-white text-sm">{prize.formattedValue}</div>
+                <div className="text-gray-400 text-xs">{prize.probability.toFixed(3)}%</div>
               </div>
             ))}
           </div>
