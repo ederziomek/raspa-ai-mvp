@@ -115,9 +115,9 @@ const GameCard = ({
 
   const [symbols, setSymbols] = useState(() => generateSymbols());
 
-  // Calcula valor máximo possível para a aposta atual
+  // Calcula valor máximo possível para a aposta atual - 5000x
   const getMaxPossibleWin = useCallback(() => {
-    const maxMultiplier = 10; // Multiplicador máximo
+    const maxMultiplier = 5000; // Multiplicador máximo corrigido para 5000x
     return betAmount * maxMultiplier;
   }, [betAmount]);
 
@@ -126,10 +126,10 @@ const GameCard = ({
     if (gameCompleted && gameResult) {
       if (gameResult.isWinner) {
         setMessageType('win');
-        setMessageText(`Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`);
+        setMessageText(`Você Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`);
       } else {
         setMessageType('loss');
-        setMessageText('Não foi dessa vez 😔 - Tente Novamente');
+        setMessageText('Não foi dessa vez 😔 - Tente novamente');
       }
     } else {
       setMessageType('default');
@@ -385,7 +385,7 @@ const GameCard = ({
         setRevealedArea(100);
         
         setTimeout(() => {
-          // Aplica background verde nos saquinhos vencedores
+          // CORRIGIDO: Aplica background verde APENAS nos saquinhos vencedores E APENAS quando ganha
           if (gameResult && gameResult.isWinner) {
             const cells = document.querySelectorAll('.symbol-cell');
             cells.forEach((cell, index) => {
@@ -623,8 +623,8 @@ const GameCard = ({
         )}
       </div>
 
-      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER */}
-      <div className="mb-4 h-8 overflow-hidden bg-gradient-to-r from-gray-700 to-gray-600 rounded-lg border border-green-500/30 relative">
+      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER - CORRIGIDA */}
+      <div className="mb-4 h-8 overflow-hidden rounded-lg border border-green-500/30 relative">
         <div 
           className={`absolute inset-0 flex items-center justify-center text-sm font-bold whitespace-nowrap animate-marquee ${
             messageType === 'win' ? 'bg-gradient-to-r from-green-600 to-green-500 text-white' :
@@ -749,7 +749,7 @@ const GameCard = ({
         )}
       </div>
 
-      {/* CSS para background verde dos vencedores e animação da mensagem */}
+      {/* CSS para background verde dos vencedores APENAS quando ganha e animação da mensagem */}
       <style jsx>{`
         .winner-cell {
           background: linear-gradient(135deg, #48bb78, #38a169) !important;
