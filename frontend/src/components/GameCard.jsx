@@ -7,7 +7,7 @@ const GameCard = ({
   gameResult, 
   isPlaying, 
   onPlay,
-  onBalanceUpdate, // Callback para atualizar saldo no componente pai
+  onBalanceUpdate,
   turboMode = false 
 }) => {
   const [scratchProgress, setScratchProgress] = useState(0);
@@ -20,16 +20,16 @@ const GameCard = ({
   const [autoActive, setAutoActive] = useState(false);
   const [autoRounds, setAutoRounds] = useState(0);
   const [showAutoOptions, setShowAutoOptions] = useState(false);
-  const [showVictoryPopup, setShowVictoryPopup] = useState(false);
-  const [showLossPopup, setShowLossPopup] = useState(false); // NOVO: POP-UP PARA PERDAS
   const [showConfetti, setShowConfetti] = useState(false);
+  const [messageType, setMessageType] = useState('default'); // 'default', 'win', 'loss'
+  const [messageText, setMessageText] = useState('');
   const canvasRef = useRef(null);
   const gameAreaRef = useRef(null);
   const isMouseDown = useRef(false);
   const lastScratchTime = useRef(0);
   const autoIntervalRef = useRef(null);
 
-  // Apenas 4 ícones conforme solicitado (removido o saquinho de dinheiro)
+  // Apenas 4 ícones conforme solicitado
   const gameIcons = ['⭐️', '💎', '☘️', '🔥'];
   const winningIcon = '💰';
 
@@ -41,7 +41,7 @@ const GameCard = ({
     }).format(value);
   };
 
-  // Gera símbolos para o jogo baseado no resultado - LÓGICA MELHORADA
+  // LÓGICA CORRIGIDA - NUNCA 3 ÍCONES IGUAIS (EXCETO SAQUINHOS PARA VITÓRIA)
   const generateSymbols = useCallback(() => {
     if (!gameResult) {
       return Array(9).fill('?');
@@ -53,36 +53,47 @@ const GameCard = ({
       // Se ganhou, coloca EXATAMENTE 3 saquinhos de dinheiro em posições ALEATÓRIAS
       const positions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
       const shuffledPositions = positions.sort(() => Math.random() - 0.5);
-      const winPositions = shuffledPositions.slice(0, 3); // Pega 3 posições aleatórias
+      const winPositions = shuffledPositions.slice(0, 3);
       
       for (let i = 0; i < 9; i++) {
         if (winPositions.includes(i)) {
           symbols[i] = winningIcon;
-        } else {
-          // Preenche com ícones aleatórios diferentes (máx 2 de cada)
-          const availableIcons = gameIcons.filter(icon => 
-            symbols.filter(s => s === icon).length < 2
-          );
-          symbols[i] = availableIcons[Math.floor(Math.random() * availableIcons.length)] || gameIcons[0];
         }
       }
+      
+      // Preenche o resto garantindo MÁXIMO 2 de cada ícone normal
+      const remainingPositions = positions.filter(pos => !winPositions.includes(pos));
+      const iconCounts = { '⭐️': 0, '💎': 0, '☘️': 0, '🔥': 0 };
+      
+      for (let pos of remainingPositions) {
+        let selectedIcon;
+        let attempts = 0;
+        
+        do {
+          selectedIcon = gameIcons[Math.floor(Math.random() * gameIcons.length)];
+          attempts++;
+        } while (iconCounts[selectedIcon] >= 2 && attempts < 50);
+        
+        symbols[pos] = selectedIcon;
+        iconCounts[selectedIcon]++;
+      }
     } else {
-      // Se perdeu, pode ter 0, 1 ou 2 saquinhos de dinheiro (NUNCA 3)
-      const numWinningIcons = Math.random() < 0.6 ? (Math.random() < 0.7 ? 1 : 2) : 0; // 60% chance de ter 1-2, 40% de ter 0
+      // Se perdeu, pode ter 0, 1 ou 2 saquinhos (NUNCA 3)
+      const numWinningIcons = Math.random() < 0.6 ? (Math.random() < 0.7 ? 1 : 2) : 0;
       
       if (numWinningIcons > 0) {
         const positions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
         const shuffledPositions = positions.sort(() => Math.random() - 0.5);
         const winPositions = shuffledPositions.slice(0, numWinningIcons);
         
-        for (let i = 0; i < 9; i++) {
-          if (winPositions.includes(i)) {
-            symbols[i] = winningIcon;
-          }
+        for (let pos of winPositions) {
+          symbols[pos] = winningIcon;
         }
       }
       
-      // Preenche o resto com ícones normais, garantindo que não há 3 iguais
+      // Preenche o resto garantindo MÁXIMO 2 de cada ícone (incluindo saquinhos já colocados)
+      const iconCounts = { '⭐️': 0, '💎': 0, '☘️': 0, '🔥': 0, '💰': numWinningIcons };
+      
       for (let i = 0; i < 9; i++) {
         if (!symbols[i]) {
           let selectedIcon;
@@ -91,26 +102,10 @@ const GameCard = ({
           do {
             selectedIcon = gameIcons[Math.floor(Math.random() * gameIcons.length)];
             attempts++;
-            
-            // Conta quantos deste ícone já existem
-            const currentCount = symbols.filter(s => s === selectedIcon).length;
-            
-            // Se já tem 2 deste ícone, tenta outro
-            if (currentCount >= 2) {
-              continue;
-            }
-            
-            // Verifica se colocar este ícone criaria 3 iguais
-            const tempSymbols = [...symbols];
-            tempSymbols[i] = selectedIcon;
-            const finalCount = tempSymbols.filter(s => s === selectedIcon).length;
-            
-            if (finalCount <= 2) {
-              break;
-            }
-          } while (attempts < 50);
+          } while (iconCounts[selectedIcon] >= 2 && attempts < 50);
           
           symbols[i] = selectedIcon;
+          iconCounts[selectedIcon]++;
         }
       }
     }
@@ -120,6 +115,28 @@ const GameCard = ({
 
   const [symbols, setSymbols] = useState(() => generateSymbols());
 
+  // Calcula valor máximo possível para a aposta atual
+  const getMaxPossibleWin = useCallback(() => {
+    const maxMultiplier = 10; // Multiplicador máximo
+    return betAmount * maxMultiplier;
+  }, [betAmount]);
+
+  // Atualiza mensagem baseada no estado do jogo
+  const updateMessage = useCallback(() => {
+    if (gameCompleted && gameResult) {
+      if (gameResult.isWinner) {
+        setMessageType('win');
+        setMessageText(`Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`);
+      } else {
+        setMessageType('loss');
+        setMessageText('Não foi dessa vez 😔 - Tente Novamente');
+      }
+    } else {
+      setMessageType('default');
+      setMessageText(`Ganhe até ${formatCurrency(getMaxPossibleWin())}`);
+    }
+  }, [gameCompleted, gameResult, getMaxPossibleWin]);
+
   // Atualiza símbolos quando o resultado do jogo muda
   useEffect(() => {
     if (gameResult) {
@@ -128,11 +145,15 @@ const GameCard = ({
       setGameCompleted(false);
       setBalanceUpdated(false);
       setRevealedArea(0);
-      setShowVictoryPopup(false);
-      setShowLossPopup(false); // RESET POP-UP DE PERDA
       setShowConfetti(false);
+      updateMessage();
     }
-  }, [gameResult, generateSymbols]);
+  }, [gameResult, generateSymbols, updateMessage]);
+
+  // Atualiza mensagem quando aposta muda
+  useEffect(() => {
+    updateMessage();
+  }, [betAmount, updateMessage]);
 
   // Reset quando inicia novo jogo
   useEffect(() => {
@@ -144,9 +165,9 @@ const GameCard = ({
       setGameCompleted(false);
       setBalanceUpdated(false);
       setRevealedArea(0);
-      setShowVictoryPopup(false);
-      setShowLossPopup(false); // ESCONDE POP-UP DE PERDA
       setShowConfetti(false);
+      setMessageType('default');
+      setMessageText(`Ganhe até ${formatCurrency(getMaxPossibleWin())}`);
       
       // Limpa o canvas único
       if (canvasRef.current) {
@@ -155,9 +176,9 @@ const GameCard = ({
         initializeCanvas();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, getMaxPossibleWin]);
 
-  // Inicializa o canvas com a camada de cobertura - COBERTURA 100% PERFEITA
+  // Inicializa o canvas com a camada de cobertura
   const initializeCanvas = useCallback(() => {
     if (!canvasRef.current || !gameAreaRef.current) return;
     
@@ -199,16 +220,6 @@ const GameCard = ({
       const y = Math.random() * canvas.height;
       const size = Math.random() * 3 + 1;
       ctx.fillRect(x, y, size, size);
-    }
-    
-    // Adiciona padrão de linhas
-    ctx.strokeStyle = '#5a6578';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 40; i++) {
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.stroke();
     }
     
     // Bordas dos quadradinhos
@@ -268,12 +279,12 @@ const GameCard = ({
     }
   }, [gameStarted, scratchProgress, initializeCanvas]);
 
-  // AUTO PLAY AUTOMÁTICO - NOVA FUNCIONALIDADE
+  // AUTO PLAY AUTOMÁTICO
   useEffect(() => {
-    if (autoActive && autoRounds > 0 && !isPlaying && gameCompleted) {
+    if (autoActive && autoRounds > 0 && !isPlaying && gameCompleted && balanceUpdated) {
       autoIntervalRef.current = setTimeout(() => {
         onPlay(turboActive);
-      }, 1500);
+      }, 2000); // Aumentado para 2 segundos para ver a mensagem
     }
     
     return () => {
@@ -281,7 +292,7 @@ const GameCard = ({
         clearTimeout(autoIntervalRef.current);
       }
     };
-  }, [autoActive, autoRounds, isPlaying, gameCompleted, turboActive, onPlay]);
+  }, [autoActive, autoRounds, isPlaying, gameCompleted, balanceUpdated, turboActive, onPlay]);
 
   // Função para "raspar" o canvas único
   const scratch = useCallback((canvas, x, y) => {
@@ -319,7 +330,7 @@ const GameCard = ({
     }
   }, [gameStarted, gameCompleted, isRevealing, turboActive]);
 
-  // Calcula o progresso da raspagem - MUDADO PARA 85%
+  // Calcula o progresso da raspagem - 85%
   const calculateScratchProgress = useCallback(() => {
     if (!canvasRef.current) return;
     
@@ -342,7 +353,7 @@ const GameCard = ({
     setScratchProgress(progress);
     setRevealedArea(progress);
     
-    // MUDANÇA: Libera automaticamente aos 85% (era 70%)
+    // Libera automaticamente aos 85%
     if (progress >= 85 && !gameCompleted) {
       completeGame();
     }
@@ -373,7 +384,6 @@ const GameCard = ({
         setScratchProgress(100);
         setRevealedArea(100);
         
-        // CORREÇÃO: BACKGROUND VERDE TAMBÉM NO TURBO
         setTimeout(() => {
           // Aplica background verde nos saquinhos vencedores
           if (gameResult && gameResult.isWinner) {
@@ -385,47 +395,46 @@ const GameCard = ({
             });
             
             setShowConfetti(true);
-            setTimeout(() => {
-              setShowVictoryPopup(true); // MOSTRA POP-UP DE VITÓRIA
-            }, 500);
             
             // Para confetes depois de 3 segundos
             setTimeout(() => {
               setShowConfetti(false);
             }, 3000);
-          } else {
-            // MOSTRA POP-UP DE PERDA
-            setTimeout(() => {
-              setShowLossPopup(true);
-            }, 500);
           }
+          
+          // Atualiza mensagem
+          updateMessage();
+          
+          // Atualiza saldo após 1 segundo
+          setTimeout(() => {
+            updateBalance();
+          }, 1000);
         }, 100);
       }
     };
     
     fadeOut();
-  }, [gameCompleted, gameResult, symbols]);
+  }, [gameCompleted, gameResult, symbols, updateMessage]);
 
-  // CORREÇÃO: Atualiza saldo APENAS quando o jogo é completado E os pop-ups são fechados
-  useEffect(() => {
-    if (gameCompleted && !balanceUpdated && gameResult && onBalanceUpdate && 
-        !showVictoryPopup && !showLossPopup) {
-      setBalanceUpdated(true);
-      
-      setTimeout(() => {
-        const balanceChange = gameResult.isWinner ? gameResult.prizeAmount : -betAmount;
-        onBalanceUpdate(balanceChange);
-        
-        // Se modo auto está ativo, diminui contador
-        if (autoActive && autoRounds > 1) {
-          setAutoRounds(prev => prev - 1);
-        } else if (autoActive && autoRounds <= 1) {
-          setAutoActive(false);
-          setAutoRounds(0);
-        }
-      }, 300);
+  // Atualiza saldo
+  const updateBalance = useCallback(() => {
+    if (balanceUpdated) return;
+    
+    setBalanceUpdated(true);
+    
+    if (onBalanceUpdate) {
+      const balanceChange = gameResult?.isWinner ? gameResult.prizeAmount : -betAmount;
+      onBalanceUpdate(balanceChange);
     }
-  }, [gameCompleted, balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds, showVictoryPopup, showLossPopup]);
+    
+    // Se modo auto está ativo, diminui contador
+    if (autoActive && autoRounds > 1) {
+      setAutoRounds(prev => prev - 1);
+    } else if (autoActive && autoRounds <= 1) {
+      setAutoActive(false);
+      setAutoRounds(0);
+    }
+  }, [balanceUpdated, gameResult, betAmount, onBalanceUpdate, autoActive, autoRounds]);
 
   // Handlers de mouse/touch
   const handleStart = useCallback((e) => {
@@ -488,15 +497,6 @@ const GameCard = ({
     onPlay(turboActive);
   };
 
-  // FUNÇÃO PARA FECHAR POP-UPS
-  const closeVictoryPopup = () => {
-    setShowVictoryPopup(false);
-  };
-
-  const closeLossPopup = () => {
-    setShowLossPopup(false);
-  };
-
   // Componente de Confetes
   const ConfettiAnimation = () => {
     if (!showConfetti) return null;
@@ -533,71 +533,15 @@ const GameCard = ({
     );
   };
 
-  // POP-UP DE VITÓRIA
-  const VictoryPopup = () => {
-    if (!showVictoryPopup || !gameResult?.isWinner) return null;
-    
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeVictoryPopup}>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-xl border-2 border-green-300 shadow-2xl max-w-sm mx-4 animate-bounce">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-4">🎉</div>
-            <div className="font-bold text-2xl mb-2">PARABÉNS!</div>
-            <div className="text-lg mb-2">Você ganhou</div>
-            <div className="font-bold text-3xl mb-2">{formatCurrency(gameResult.prizeAmount)}</div>
-            <div className="text-sm text-green-100 mb-4">Multiplicador: {gameResult.multiplier.toFixed(1)}x</div>
-            <button 
-              onClick={closeVictoryPopup}
-              className="bg-white text-green-600 px-6 py-2 rounded-lg font-bold hover:bg-green-50 transition-colors"
-            >
-              Continuar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // POP-UP DE PERDA
-  const LossPopup = () => {
-    if (!showLossPopup || (gameResult && gameResult.isWinner)) return null;
-    
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeLossPopup}>
-        <div className="bg-gradient-to-br from-red-500 to-red-600 p-6 rounded-xl border-2 border-red-300 shadow-2xl max-w-sm mx-4 animate-bounce">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-4">😔</div>
-            <div className="font-bold text-2xl mb-2">Não foi dessa vez...</div>
-            <div className="text-lg mb-4">Tente novamente!</div>
-            <button 
-              onClick={closeLossPopup}
-              className="bg-white text-red-600 px-6 py-2 rounded-lg font-bold hover:bg-red-50 transition-colors"
-            >
-              Continuar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="bg-gradient-to-b from-gray-800 to-gray-900 p-4 sm:p-6 rounded-lg border-2 border-green-500 shadow-2xl max-w-md mx-auto w-full relative">
       {/* Confetes */}
       <ConfettiAnimation />
       
-      {/* POP-UPS */}
-      <VictoryPopup />
-      <LossPopup />
-      
       {/* Header */}
       <div className="text-center mb-4">
         <h2 className="text-2xl font-bold text-green-400 mb-2">RaspaAI</h2>
-        <p className="text-gray-300 text-sm">
-          {turboActive && gameStarted ? 'Modo Turbo Ativado!' : 
-           autoActive ? `Modo Auto: ${autoRounds} rodadas restantes` : 
-           'Raspe e ganhe prêmios incríveis!'}
-        </p>
+        <p className="text-gray-300 text-sm">Raspe e ganhe prêmios incríveis!</p>
       </div>
 
       {/* Barra de progresso - APENAS VERDE */}
@@ -671,7 +615,7 @@ const GameCard = ({
           />
         )}
 
-        {/* Indicador de área liberada - MUDADO PARA 85% */}
+        {/* Indicador de área liberada */}
         {gameStarted && scratchProgress >= 85 && scratchProgress < 100 && (
           <div className="absolute top-2 right-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold animate-bounce z-20">
             85%+ Liberado!
@@ -679,50 +623,63 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Informações do jogo */}
+      {/* MENSAGEM ANIMADA ESTILO FORTUNE TIGER */}
+      <div className="mb-4 h-8 overflow-hidden bg-gradient-to-r from-gray-700 to-gray-600 rounded-lg border border-green-500/30 relative">
+        <div 
+          className={`absolute inset-0 flex items-center justify-center text-sm font-bold whitespace-nowrap animate-marquee ${
+            messageType === 'win' ? 'bg-gradient-to-r from-green-600 to-green-500 text-white' :
+            messageType === 'loss' ? 'bg-gradient-to-r from-red-600 to-red-500 text-white' :
+            'bg-gradient-to-r from-gray-700 to-gray-600 text-green-400'
+          }`}
+        >
+          {messageText}
+        </div>
+      </div>
+
+      {/* Informações do jogo - LAYOUT ESTILO FORTUNE TIGER */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
-          <div className="text-green-400 text-xs font-medium mb-1">SALDO</div>
+        <div className="bg-gradient-to-br from-yellow-600 to-yellow-700 p-3 rounded border-2 border-yellow-400 text-center">
+          <div className="text-yellow-100 text-xs font-medium mb-1">💰 SALDO</div>
           <div className="text-white text-sm font-bold">{formatCurrency(balance)}</div>
         </div>
-        <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
-          <div className="text-green-400 text-xs font-medium mb-1">APOSTA</div>
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-3 rounded border-2 border-blue-400 text-center">
+          <div className="text-blue-100 text-xs font-medium mb-1">🎯 APOSTA</div>
           <div className="text-white text-sm font-bold">{formatCurrency(betAmount)}</div>
         </div>
-        <div className="bg-gray-700/50 p-3 rounded border border-green-500/30 text-center">
-          <div className="text-green-400 text-xs font-medium mb-1">GANHO</div>
+        <div className="bg-gradient-to-br from-green-600 to-green-700 p-3 rounded border-2 border-green-400 text-center">
+          <div className="text-green-100 text-xs font-medium mb-1">🏆 GANHO</div>
           <div className="text-white text-sm font-bold">
-            {/* CORREÇÃO: SÓ MOSTRA GANHO APÓS COMPLETAR O JOGO E FECHAR POP-UPS */}
             {formatCurrency(gameCompleted && balanceUpdated && gameResult?.prizeAmount ? gameResult.prizeAmount : 0)}
           </div>
         </div>
       </div>
 
-      {/* Botão principal de jogar */}
+      {/* Botão principal de jogar - ESTILO FORTUNE TIGER */}
       <button 
         onClick={handlePlay}
         disabled={isPlaying || balance < betAmount}
-        className="w-full h-12 bg-gradient-to-b from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:opacity-50 text-white font-bold text-lg border-2 border-green-400 shadow-lg transform transition-all duration-150 active:scale-95 rounded mb-4"
+        className="w-full h-14 bg-gradient-to-b from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 disabled:opacity-50 text-white font-bold text-xl border-3 border-green-300 shadow-xl transform transition-all duration-150 active:scale-95 rounded-lg mb-4 relative overflow-hidden"
       >
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 animate-pulse"></div>
         {isPlaying ? (
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <div className="flex items-center justify-center gap-2 relative z-10">
+            <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
             Aguarde...
           </div>
         ) : (
-          `▶ Jogar ${formatCurrency(betAmount)}`
+          <span className="relative z-10">▶ JOGAR {formatCurrency(betAmount)}</span>
         )}
       </button>
 
-      {/* Controles em linha - BOTÕES MELHORADOS */}
-      <div className="grid grid-cols-4 gap-2 relative">
+      {/* Controles em linha - LAYOUT FORTUNE TIGER */}
+      <div className="flex gap-2 relative">
         {/* Botão Turbo */}
         <button 
           onClick={handleTurboClick}
           disabled={isPlaying}
-          className={`h-12 ${
+          className={`flex-1 h-12 ${
             turboActive 
-              ? 'bg-gradient-to-b from-green-600 to-green-700 border-green-400' 
+              ? 'bg-gradient-to-b from-orange-500 to-orange-600 border-orange-300' 
               : 'bg-gradient-to-b from-gray-600 to-gray-700 border-gray-500'
           } hover:opacity-80 disabled:opacity-50 text-white font-bold border-2 shadow-lg transform transition-all duration-150 active:scale-95 rounded relative`}
         >
@@ -730,7 +687,7 @@ const GameCard = ({
             <span className="text-lg">⚡</span>
             <span className="text-xs">TURBO</span>
             {turboActive && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
             )}
           </div>
         </button>
@@ -739,7 +696,7 @@ const GameCard = ({
         <button 
           onClick={() => setBetAmount(prev => Math.max(0.5, prev - 0.5))}
           disabled={isPlaying || autoActive}
-          className="h-12 bg-gradient-to-b from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:opacity-50 text-white font-bold text-2xl border-2 border-green-400 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
+          className="w-12 h-12 bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-red-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
         >
           -
         </button>
@@ -747,7 +704,7 @@ const GameCard = ({
         <button 
           onClick={() => setBetAmount(prev => Math.min(1000, prev + 0.5))}
           disabled={isPlaying || autoActive}
-          className="h-12 bg-gradient-to-b from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 disabled:opacity-50 text-white font-bold text-2xl border-2 border-green-400 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
+          className="w-12 h-12 bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-2xl border-2 border-blue-300 shadow-lg transform transition-all duration-150 active:scale-95 rounded"
         >
           +
         </button>
@@ -756,9 +713,9 @@ const GameCard = ({
         <button 
           onClick={handleAutoClick}
           disabled={isPlaying}
-          className={`h-12 ${
+          className={`flex-1 h-12 ${
             autoActive 
-              ? 'bg-gradient-to-b from-green-600 to-green-700 border-green-400' 
+              ? 'bg-gradient-to-b from-purple-500 to-purple-600 border-purple-300' 
               : 'bg-gradient-to-b from-gray-600 to-gray-700 border-gray-500'
           } hover:opacity-80 disabled:opacity-50 text-white font-bold border-2 shadow-lg transform transition-all duration-150 active:scale-95 rounded relative`}
         >
@@ -768,7 +725,7 @@ const GameCard = ({
               {autoActive ? autoRounds : 'AUTO'}
             </span>
             {autoActive && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
             )}
           </div>
         </button>
@@ -792,7 +749,7 @@ const GameCard = ({
         )}
       </div>
 
-      {/* CSS para background verde dos vencedores */}
+      {/* CSS para background verde dos vencedores e animação da mensagem */}
       <style jsx>{`
         .winner-cell {
           background: linear-gradient(135deg, #48bb78, #38a169) !important;
@@ -802,6 +759,15 @@ const GameCard = ({
         @keyframes winner-pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.8; }
+        }
+        
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        
+        .animate-marquee {
+          animation: marquee 8s linear infinite;
         }
       `}</style>
     </div>
