@@ -51,7 +51,7 @@ function App() {
     return 0; // fallback
   };
 
-  // CORRIGIDO: Simula jogo SEM debitar saldo imediatamente
+  // CORRIGIDO: Debita saldo imediatamente, credita prêmio após revelação
   const playGame = async (isTurbo = false) => {
     if (balance < betAmount || isPlaying) return;
 
@@ -59,8 +59,8 @@ function App() {
     setIsPlaying(true);
     setGameResult(null);
     
-    // REMOVIDO: Não debita aposta aqui mais
-    // setBalance(prev => prev - betAmount);
+    // NOVO: Debita aposta imediatamente
+    setBalance(prev => prev - betAmount);
 
     // Simula delay do jogo (menor para turbo)
     const delay = isTurbo ? 800 : 1500;
@@ -71,7 +71,7 @@ function App() {
     const isWinner = multiplier > 0;
     const prizeAmount = betAmount * multiplier;
 
-    // REMOVIDO: Não credita prêmio aqui mais
+    // REMOVIDO: Não credita prêmio aqui mais - será creditado após revelação
     // if (isWinner) {
     //   setBalance(prev => prev + prizeAmount);
     // }
@@ -88,9 +88,12 @@ function App() {
     setIsPlaying(false);
   };
 
-  // NOVO: Função chamada quando raspadinha é 100% revelada
-  const handleBalanceUpdate = (balanceChange) => {
-    setBalance(prev => prev + balanceChange);
+  // NOVO: Função chamada quando raspadinha é 100% revelada - credita apenas prêmio
+  const handleBalanceUpdate = (prizeAmount) => {
+    if (prizeAmount > 0) {
+      setBalance(prev => prev + prizeAmount);
+    }
+    // Não faz nada se prizeAmount for 0 (derrota) - aposta já foi debitada
   };
 
   // Callback quando a revelação da raspadinha termina

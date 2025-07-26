@@ -126,9 +126,9 @@ const GameCard = ({
   const getMessages = useCallback(() => {
     if (gameCompleted && gameResult) {
       if (gameResult.isWinner) {
-        return [`Você Ganhou: ${formatCurrency(gameResult.prizeAmount)} 🤑`];
+        return [`Ganho: ${formatCurrency(gameResult.prizeAmount)} 🤑`];
       } else {
-        return ['Não foi dessa vez 😔 - Tente novamente'];
+        return ['Não foi dessa vez 😔 Tente Novamente!'];
       }
     } else {
       return [
@@ -370,7 +370,7 @@ const GameCard = ({
     }
   }, [gameStarted, gameCompleted, isRevealing, turboActive]);
 
-  // Calcula o progresso da raspagem - 85%
+  // Calcula o progresso da raspagem - 80%
   const calculateScratchProgress = useCallback(() => {
     if (!canvasRef.current) return;
     
@@ -393,8 +393,8 @@ const GameCard = ({
     setScratchProgress(progress);
     setRevealedArea(progress);
     
-    // Libera automaticamente aos 85%
-    if (progress >= 85 && !gameCompleted) {
+    // Libera automaticamente aos 80%
+    if (progress >= 80 && !gameCompleted) {
       completeGame();
     }
   }, [gameCompleted]);
@@ -463,8 +463,9 @@ const GameCard = ({
     setBalanceUpdated(true);
     
     if (onBalanceUpdate) {
-      const balanceChange = gameResult?.isWinner ? gameResult.prizeAmount : -betAmount;
-      onBalanceUpdate(balanceChange);
+      // CORRIGIDO: Passa apenas prizeAmount se ganhou (aposta já foi debitada)
+      const prizeAmount = gameResult?.isWinner ? gameResult.prizeAmount : 0;
+      onBalanceUpdate(prizeAmount);
     }
     
     // Se modo auto está ativo, diminui contador
@@ -597,7 +598,7 @@ const GameCard = ({
             <span className="text-green-400">
               {Math.round(scratchProgress)}% revelado
             </span>
-            {scratchProgress >= 85 && scratchProgress < 100 && (
+            {scratchProgress >= 80 && scratchProgress < 100 && (
               <span className="text-yellow-400 animate-pulse">
                 🎯 Liberando automaticamente...
               </span>
@@ -656,9 +657,9 @@ const GameCard = ({
         )}
 
         {/* Indicador de área liberada */}
-        {gameStarted && scratchProgress >= 85 && scratchProgress < 100 && (
+        {gameStarted && scratchProgress >= 80 && scratchProgress < 100 && (
           <div className="absolute top-2 right-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold animate-bounce z-20">
-            85%+ Liberado!
+            80%+ Liberado!
           </div>
         )}
       </div>
